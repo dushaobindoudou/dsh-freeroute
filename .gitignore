@@ -4,7 +4,7 @@ node_modules/
 # npm local cache used when the global cache is outside the sandbox
 .npm-cache/
 
-# Lockfile committed: npm ci in CI
+# Lockfile committed: CI runs npm ci for reproducible installs
 
 # Vendored third-party reference material (engine source/tests), kept local
 refs/
@@ -28,4 +28,3 @@ coverage/
 
 # Internal verification notes
 VERIFY.md
-package-lock.json
