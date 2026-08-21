@@ -60,5 +60,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
-            --title "dsh-refine ${GITHUB_REF_NAME}" \
+            --title "dsh-freeroute ${GITHUB_REF_NAME}" \
             --notes-file release-notes.md
