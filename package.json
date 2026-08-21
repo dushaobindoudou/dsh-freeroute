@@ -1,0 +1,60 @@
+{
+  "name": "dsh-freeroute",
+  "version": "0.1.0",
+  "description": "Free-tier model routing for the DeepSeek Harness (dsh) - discover OpenRouter free models, apply the best free model as agent default, auto-rotate on rate limits; paid config untouched unless asked.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "node smoke-host.mjs",
+    "prepublishOnly": "npm run lint && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dushaobindoudou/dsh-freeroute.git"
+  },
+  "homepage": "https://github.com/dushaobindoudou/dsh-freeroute",
+  "bugs": {
+    "url": "https://github.com/dushaobindoudou/dsh-freeroute/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis-plugin",
+    "openrouter",
+    "free-tier",
+    "llm-routing"
+  ],
+  "author": "dushaobindoudou",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1"
+  }
+}

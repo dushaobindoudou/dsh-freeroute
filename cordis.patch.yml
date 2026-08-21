@@ -1,0 +1,4 @@
+# cordis.patch.yml — dsh profile overlay mounting dsh-freeroute.
+- insert:
+    - id: freeroute
+      name: dsh-freeroute

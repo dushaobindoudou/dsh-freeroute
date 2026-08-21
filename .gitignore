@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# npm local cache used when the global cache is outside the sandbox
+.npm-cache/
+
+# Lockfile committed: npm ci in CI
+
+# Vendored third-party reference material (engine source/tests), kept local
+refs/
+
+# Local scratch / research drafts
+scratch/
+prime-agent-refine-research.md
+dsh-continual-harness-evaluation.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# Build output
+dist/
+coverage/
+*.tgz
+
+# Internal verification notes
+VERIFY.md
+package-lock.json
