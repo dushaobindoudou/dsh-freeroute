@@ -28,3 +28,6 @@ coverage/
 
 # Internal verification notes
 VERIFY.md
+
+# Local agent session memory
+.workbuddy/

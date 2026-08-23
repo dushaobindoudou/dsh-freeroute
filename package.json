@@ -1,11 +1,12 @@
 {
   "name": "dsh-freeroute",
-  "version": "0.1.0",
-  "description": "Free-tier model routing for the DeepSeek Harness (dsh) - discover OpenRouter free models, apply the best free model as agent default, auto-rotate on rate limits; paid config untouched unless asked.",
+  "version": "0.2.0",
+  "description": "Free-tier model routing for the DeepSeek Harness (dsh) - smart OpenRouter free-model ranking, runtime takeover via the agent/request waterfall, mid-step rotation on rate limits; paid config untouched unless asked.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
     ".": "./lib/index.js",
+    "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -56,5 +57,19 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.8.1"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "@deepseek-ai/dsh-client-web-react": ">=0.1.0",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "@deepseek-ai/dsh-client-web-react": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-primitives": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-slots": { "optional": true },
+    "@deepseek-ai/dsh-client-runtime": { "optional": true }
   }
 }

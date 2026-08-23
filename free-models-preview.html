@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>免费模型 · dsh-freeroute</title>
+<style>
+  :root {
+    --bg: #0b0e11;
+    --panel: #14181d;
+    --panel-2: #1a1f26;
+    --border: #2a313b;
+    --border-soft: #222831;
+    --text: #e6e9ee;
+    --text-dim: #9aa4b2;
+    --text-faint: #6b7585;
+    --emerald: #34d399;
+    --emerald-dim: #0f3d31;
+    --emerald-soft: rgba(52, 211, 153, 0.12);
+    --amber: #f5b14c;
+    --amber-soft: rgba(245, 177, 76, 0.14);
+    --danger: #f87171;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 28px;
+    display: flex;
+    justify-content: center;
+  }
+  .shell {
+    width: 100%;
+    max-width: 860px;
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    min-height: 560px;
+  }
+  /* left rail — mimics dsh settings nav */
+  .rail {
+    width: 196px;
+    flex: 0 0 196px;
+    background: var(--panel-2);
+    border-right: 1px solid var(--border-soft);
+    padding: 16px 10px;
+  }
+  .rail .brand {
+    font-size: 12px;
+    color: var(--text-faint);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 4px 10px 12px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: var(--text-dim);
+    cursor: default;
+    font-size: 13px;
+  }
+  .nav-item.active {
+    background: var(--emerald-soft);
+    color: var(--emerald);
+    font-weight: 600;
+  }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }
+  /* content */
+  .content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .head {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .head h1 { margin: 0; font-size: 18px; font-weight: 650; }
+  .head .sub { margin: 4px 0 0; color: var(--text-dim); font-size: 12.5px; }
+  .toolbar { display: flex; align-items: center; gap: 10px; }
+  .btn {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .btn:hover { border-color: var(--emerald); }
+  .btn.primary {
+    background: var(--emerald);
+    color: #06281f;
+    border-color: var(--emerald);
+    font-weight: 600;
+  }
+  .btn.primary:hover { background: #2bb98a; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .status {
+    padding: 8px 22px;
+    font-size: 12px;
+    color: var(--text-faint);
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .status .err { color: var(--amber); }
+  .status .ok { color: var(--emerald); }
+  .list { padding: 8px 14px 20px; overflow-y: auto; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 9px;
+    margin-top: 8px;
+    background: var(--panel-2);
+  }
+  .row.test { border-color: var(--amber); background: var(--amber-soft); }
+  .row .info { flex: 1; min-width: 0; }
+  .row .name { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .row .id { color: var(--text-faint); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .badge {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    background: rgba(255,255,255,.02);
+  }
+  .badge.ctx { color: var(--emerald); border-color: var(--emerald-dim); background: var(--emerald-soft); }
+  .badge.test { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+  .badge.prov { color: var(--text-dim); }
+  .empty { color: var(--text-faint); padding: 30px; text-align: center; }
+  /* toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #0d1116;
+    border: 1px solid var(--emerald);
+    color: var(--text);
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    max-width: 80vw;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast .cmd { font-family: ui-monospace, monospace; color: var(--emerald); margin-top: 4px; font-size: 12px; }
+  .spin { width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--emerald); border-radius: 50%; display: inline-block; animation: sp .7s linear infinite; vertical-align: -2px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="rail">
+      <div class="brand">设置</div>
+      <div class="nav-item"><span class="dot"></span>模型</div>
+      <div class="nav-item"><span class="dot"></span>常规</div>
+      <div class="nav-item"><span class="dot"></span>插件</div>
+      <div class="nav-item active"><span class="dot"></span>免费模型</div>
+    </nav>
+    <main class="content">
+      <div class="head">
+        <div>
+          <h1>免费模型</h1>
+          <p class="sub">dsh-freeroute · 自动发现 OpenRouter 免费额度模型并一键设为默认</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="refresh">刷新目录</button>
+        </div>
+      </div>
+      <div class="status" id="status">—</div>
+      <div class="list" id="list"><div class="empty">加载中…</div></div>
+    </main>
+  </div>
+  <div id="toast"></div>
+
+<script type="module">
+  // Standalone mirror of the dsh web settings panel. Ranking is imported
+  // from the real plugin so the preview always matches lib/index.js.
+  // Serve the repo root over HTTP (e.g. `python3 -m http.server 8099`) and
+  // open /free-models-preview.html - the import needs http(s), not file://.
+  import { FREEROUTE_VERSION, rankFreeModels } from "./lib/index.js";
+
+  const CATALOG_URL = "https://openrouter.ai/api/v1/models";
+  const PROVIDER = "openrouter";
+
+  const $ = (id) => document.getElementById(id);
+  const listEl = $("list");
+  const statusEl = $("status");
+  const refreshBtn = $("refresh");
+
+  let catalog = [];
+  let catalogError = "";
+
+  let toastTimer = null;
+  function toast(msg, cmd) {
+    const t = $("toast");
+    t.innerHTML = "";
+    t.appendChild(document.createTextNode(msg));
+    if (cmd) {
+      const c = document.createElement("div");
+      c.className = "cmd";
+      c.textContent = cmd;
+      t.appendChild(c);
+    }
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+  }
+
+  function fmtCtx(n) {
+    if (!n) return "?";
+    if (n >= 1000000) return (n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1) + "M";
+    return Math.round(n / 1000) + "k";
+  }
+
+  async function refreshCatalog() {
+    const res = await fetch(CATALOG_URL, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const body = await res.json();
+    catalog = rankFreeModels(body.data, {});
+  }
+
+  function badge(text, cls) {
+    const b = document.createElement("span");
+    b.className = "badge " + (cls || "");
+    b.textContent = text;
+    return b;
+  }
+
+  function render() {
+    if (!catalog.length) {
+      listEl.innerHTML = '<div class="empty">免费目录为空' + (catalogError ? "（" + catalogError + "）" : "") + "</div>";
+    } else {
+      listEl.innerHTML = "";
+      catalog.forEach((m, i) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        const info = document.createElement("div");
+        info.className = "info";
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = (i + 1) + ". " + m.name;
+        const id = document.createElement("div");
+        id.className = "id";
+        id.textContent = m.id;
+        const badges = document.createElement("div");
+        badges.className = "badges";
+        badges.appendChild(badge("score " + m.score, "ctx"));
+        badges.appendChild(badge("ctx " + fmtCtx(m.ctx), "ctx"));
+        if (m.flags.length) badges.appendChild(badge(m.flags.join(" · "), "prov"));
+        info.appendChild(name);
+        info.appendChild(id);
+        info.appendChild(badges);
+
+        const btn = document.createElement("button");
+        btn.className = "btn primary";
+        btn.textContent = "使用";
+        btn.onclick = () => applyModel(m);
+
+        row.appendChild(info);
+        row.appendChild(btn);
+        listEl.appendChild(row);
+      });
+    }
+    statusEl.innerHTML = "";
+    const s1 = document.createElement("span");
+    s1.className = catalogError ? "err" : "ok";
+    s1.textContent = catalogError
+      ? "刷新失败: " + catalogError
+      : "免费目录: " + catalog.length + " 个模型 · 与 /free list 同一排行 (v" + FREEROUTE_VERSION + ")";
+    statusEl.appendChild(s1);
+  }
+
+  async function applyModel(m) {
+    const cmd = "/free use " + m.id + "   ·   /free on 立即接管当前会话";
+    toast("已选定 " + m.id + "（等效命令，需在 dsh 中执行以真正生效）", cmd);
+  }
+
+  async function load() {
+    refreshBtn.disabled = true;
+    statusEl.innerHTML = '<span class="spin"></span> 正在拉取 OpenRouter 免费目录…';
+    try {
+      await refreshCatalog();
+      catalogError = "";
+    } catch (e) {
+      catalogError = String((e && e.message) || e);
+    }
+    render();
+    refreshBtn.disabled = false;
+  }
+
+  refreshBtn.onclick = load;
+  load();
+</script>
+</script>
+</body>
+</html>
