@@ -54,7 +54,7 @@
     }
 
     async function syncCatalog() {
-      const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || ''
+      const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
       if (!url) { catalogMeta.lastError = '未配置远程目录 URL'; return { ok: false, error: catalogMeta.lastError } }
       try {
         const r = await rawGet(url, 30000)

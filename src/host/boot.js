@@ -74,7 +74,7 @@
     })
     ctx.effect(function () {
       return timer.timeout(function () {
-        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || ''
+        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
         if (url) syncCatalog().catch(function () { })
         probeAll().catch(function () { })
         ensureHostBindings()
@@ -84,7 +84,7 @@
     ctx.effect(function () {
       const refreshMs = (userConfig.catalog && userConfig.catalog.autoRefreshMs >= 60000) ? userConfig.catalog.autoRefreshMs : 1800000
       return timer.interval(function () {
-        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || ''
+        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
         if (url) syncCatalog().catch(function () { })
         ensureHostBindings()
       }, refreshMs)

@@ -316,6 +316,10 @@ return {
     let webServer = ctx.get('webServer')
     let commands = ctx.get('commands')
 
+    // 内置默认远程目录源：用户未显式配置 catalog.remoteUrl 时回退到此源，
+    // 让全新安装自动拉取免费模型目录（Cloudflare Pages 静态 JSON）。
+    const DEFAULT_CATALOG_URL = 'https://freeroute-config.pages.dev/freeroute.json'
+
     let userConfig = { order: [], upstreams: {} }
     let takeoverDone = false
     let takeoverPrev = null // 自动接管前的原默认选择（关闭开关时恢复）
@@ -1341,7 +1345,7 @@ return {
     }
 
     async function syncCatalog() {
-      const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || ''
+      const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
       if (!url) { catalogMeta.lastError = '未配置远程目录 URL'; return { ok: false, error: catalogMeta.lastError } }
       try {
         const r = await rawGet(url, 30000)
@@ -1501,7 +1505,7 @@ return {
         autoTakeover: userConfig.autoTakeover !== false,
         autoInjected: injectedNow,
         catalog: {
-          remoteUrl: (userConfig.catalog && userConfig.catalog.remoteUrl) || '',
+          remoteUrl: (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL,
           autoRefreshMs: (userConfig.catalog && userConfig.catalog.autoRefreshMs) || 1800000,
           lastSyncAt: catalogMeta.lastSyncAt,
           lastSyncError: catalogMeta.lastError || null,
@@ -1744,8 +1748,9 @@ return {
           const mark = !en ? '○ 关闭' : (cooling(ups[i].id) ? '◐ 冷却' : (flags[i] ? '● 就绪' : '◌ 无Key'))
           lines.push(mark + ' ' + ups[i].id + (h.lastError ? '（最近错误: ' + String(h.lastError).slice(0, 60) + '）' : ''))
         }
-        const cat = userConfig.catalog && userConfig.catalog.remoteUrl
-        lines.push('就绪上游 ' + ready + '/' + ups.length + '；远程目录: ' + (cat ? cat : '未配置') + (catalogMeta.lastSyncAt ? '（上次同步 ' + new Date(catalogMeta.lastSyncAt).toISOString() + '）' : ''))
+        const catUrl = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
+        const catNote = (userConfig.catalog && userConfig.catalog.remoteUrl) ? '' : '（内置默认）'
+        lines.push('就绪上游 ' + ready + '/' + ups.length + '；远程目录: ' + catUrl + catNote + (catalogMeta.lastSyncAt ? '（上次同步 ' + new Date(catalogMeta.lastSyncAt).toISOString() + '）' : ''))
         lines.push('把默认模型切到 ' + ROUTE + '/auto 即可开始使用；外部工具可用 ' + (webServer !== undefined ? ('http://127.0.0.1:' + webServer.port + '/freeroute/v1') : '（webServer 未挂载）'))
         return { kind: 'success', text: lines.join('\n') }
       })
@@ -1935,7 +1940,7 @@ return {
     })
     ctx.effect(function () {
       return timer.timeout(function () {
-        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || ''
+        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
         if (url) syncCatalog().catch(function () { })
         probeAll().catch(function () { })
         ensureHostBindings()
@@ -1945,7 +1950,7 @@ return {
     ctx.effect(function () {
       const refreshMs = (userConfig.catalog && userConfig.catalog.autoRefreshMs >= 60000) ? userConfig.catalog.autoRefreshMs : 1800000
       return timer.interval(function () {
-        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || ''
+        const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
         if (url) syncCatalog().catch(function () { })
         ensureHostBindings()
       }, refreshMs)

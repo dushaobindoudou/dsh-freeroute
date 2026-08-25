@@ -94,7 +94,7 @@
         autoTakeover: userConfig.autoTakeover !== false,
         autoInjected: injectedNow,
         catalog: {
-          remoteUrl: (userConfig.catalog && userConfig.catalog.remoteUrl) || '',
+          remoteUrl: (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL,
           autoRefreshMs: (userConfig.catalog && userConfig.catalog.autoRefreshMs) || 1800000,
           lastSyncAt: catalogMeta.lastSyncAt,
           lastSyncError: catalogMeta.lastError || null,
