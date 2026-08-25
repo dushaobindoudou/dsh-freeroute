@@ -318,7 +318,7 @@ return {
 
     // 内置默认远程目录源：用户未显式配置 catalog.remoteUrl 时回退到此源，
     // 让全新安装自动拉取免费模型目录（Cloudflare Pages 静态 JSON）。
-    const DEFAULT_CATALOG_URL = 'https://freeroute-config.pages.dev/freeroute.json'
+    const DEFAULT_CATALOG_URL = 'https://config.freetokenbox.com/freeroute.json'
 
     let userConfig = { order: [], upstreams: {} }
     let takeoverDone = false
