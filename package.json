@@ -1,6 +1,6 @@
 {
   "name": "dsh-freeroute",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Free-tier model aggregation for the DeepSeek Harness (dsh): registers the freeroute provider over a pool of free-quota upstreams (OpenCode Zen / B.AI / OpenRouter / SenseNova built in, plus remote catalogs and custom gateways), transparent failover before first token, multi-key rotation with per-key failure visibility, user-supplied API keys with per-upstream signup tutorials, a settings panel, and an OpenAI-compatible local endpoint.",
   "type": "module",
   "main": "./lib/index.js",
