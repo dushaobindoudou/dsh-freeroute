@@ -28,3 +28,7 @@ coverage/
 
 # Internal verification notes
 VERIFY.md
+
+# Local agent workspace / research drafts (not part of the package)
+.workbuddy/
+docs/

@@ -1,62 +1,3 @@
-/**
- * dsh-freeroute — free-tier model aggregation for the DeepSeek Harness (dsh).
- *
- * Registers the `freeroute` model provider backed by a user-configured pool
- * of free-quota upstreams (OpenCode Zen / OpenRouter / SenseNova built in,
- * plus remote catalog + custom gateways). Requests fail over transparently
- * between upstreams before the first token reaches the session;
- * an OpenAI-compatible local endpoint is served under `/freeroute/v1`.
- * 设置 → 模型 integration: the built-in models page is wrapped with a
- * 默认 | 免费 tab bar below the intro (client-side; Typert Remote
- * `freeroute` carries the panel data).
- *
- * Ported from the battle-tested dynamic-plugin body (freeroute-dynamic/,
- * integration-tested 69/69) — do not hand-edit one side only.
- */
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-
-/**
- * Apply one `@Remote(method)` marker without decorator syntax: the shim
- * mimics the decorator context `addMarkerInitializer` expects, and the
- * initializer marks the prototype exactly like a real decorator would.
- */
-function markRemoteMethod(prototype, method) {
-  const decorator = Remote(method)
-  decorator(undefined, {
-    name: method,
-    private: false,
-    static: false,
-    addInitializer(fn) { fn.call(Object.create(prototype)) },
-  })
-}
-
-/**
- * `freeroute` Remote namespace consumed by the settings panel over the
- * client Connection RPC carrier (`/api`, endpoint `freeroute/<method>`).
- * Thin delegation onto the rpc handler map built inside apply(), so the
- * dynamic-plugin handler bodies stay the single source of truth.
- */
-class FreerouteRemote extends TypertRemoteService {
-  constructor(c, rpcMap) {
-    super(c, 'freeroute')
-    this._rpc = rpcMap
-  }
-
-  async state(request) { return this._rpc['freeroute.state'](request || {}) }
-  async setKey(request) { return this._rpc['freeroute.set-key'](request || {}) }
-  async clearKey(request) { return this._rpc['freeroute.clear-key'](request || {}) }
-  async applyPatch(request) { return this._rpc['freeroute.apply-patch'](request || {}) }
-  async removeUpstream(request) { return this._rpc['freeroute.remove-upstream'](request || {}) }
-  async catalogSync(request) { return this._rpc['freeroute.catalog.sync'](request || {}) }
-  async probe(request) { return this._rpc['freeroute.probe'](request || {}) }
-  async test(request) { return this._rpc['freeroute.test'](request || {}) }
-  async setDefault(request) { return this._rpc['freeroute.set-default'](request || {}) }
-  async getKeys(request) { return this._rpc['freeroute.get-keys'](request || {}) }
-}
-for (const m of ['state', 'setKey', 'clearKey', 'applyPatch', 'removeUpstream', 'catalogSync', 'probe', 'test', 'setDefault', 'getKeys']) markRemoteMethod(FreerouteRemote.prototype, m)
-
 const VERSION = '0.5.0'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
@@ -362,15 +303,9 @@ function parseCatalog(text) {
 
 // settings/credentials/subprocess 是核心依赖：必须进 inject，否则本插件先于
 // 它们启动时 ctx.get 会永久快照成 undefined（实测 persistence:false、无外部端点）。
-
-export const inject = ['llm', 'timer', 'settings', 'credentials', 'subprocess']
-
-export function apply(ctx, _config = {}) {
-  // JSON 配置文件层（~/.dsh/freeroute.json）所需的 node 能力；动态沙箱里
-  // 这两个标识符不存在，host 体内用 typeof 守卫降级到 settings 服务。
-  const __nodeFs = { mkdirSync, readFileSync, renameSync, statSync, writeFileSync }
-  const __nodeOs = { homedir }
-
+return {
+  inject: ['llm', 'timer', 'settings', 'credentials', 'subprocess'],
+  apply(ctx) {
     const llm = ctx.llm
     const timer = ctx.timer
     const settings = ctx.get('settings')
@@ -1964,9 +1899,11 @@ export function apply(ctx, _config = {}) {
     if (configFileOk) console.log('[freeroute] 配置文件:', configPath)
 
     ctx.effect(function () { return llm.registerAdapter([ROUTE], adapter) })
-    // Client panel RPC: the dynamic harness.handle loop becomes a Typert
-    // Remote namespace; method bodies stay the exact rpc handler map above.
-    new FreerouteRemote(ctx, rpc)
+    for (const pair of Object.entries(rpc)) {
+      const name = pair[0]
+      const handler = pair[1]
+      ctx.effect(function () { return harness.handle(name, handler) })
+    }
     // 晚到自愈：apply、每轮 tick、buildState 都会调它；已挂载过则幂等跳过。
     let disposeWebRoute = null
     let disposeCommand = null
@@ -2021,5 +1958,5 @@ export function apply(ctx, _config = {}) {
       return timer.interval(function () { probeAll().catch(function () { }) }, 600000)
     })
     console.log('[freeroute] v' + VERSION + ' 就绪：路由 ' + ROUTE + '，内置上游 ' + BUILTIN_UPSTREAMS.length + ' 个，支持模型探测与远程目录（Cloudflare JSON / models.dev 格式）')
-
+  }
 }
