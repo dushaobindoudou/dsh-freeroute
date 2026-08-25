@@ -24,6 +24,7 @@ const CFG = __os.tmpdir() + '/freeroute-test-' + process.pid + '.json'
 try { __fs.unlinkSync(CFG) } catch { /* 不存在即跳过 */ }
 process.env.FREEROUTE_CONFIG = CFG
 
+const pkg = JSON.parse(readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8'))
 const body = readFileSync(path.join(here, '..', 'host.js'), 'utf8')
 if (body.includes('`')) throw new Error('host.js 含反引号，无法用 Function 包装（请改用引号字符串）')
 
@@ -272,7 +273,7 @@ check('llm 适配器注册到 freeroute 路由', adapter != null)
 check('RPC 处理器已注册（state 等）', handlers.has('freeroute.state') && handlers.has('freeroute.apply-patch') && handlers.has('freeroute.set-key'))
 {
   const st = await state()
-  check('版本号 v0.5.0', st.version === '0.5.0', st.version)
+  check('版本号 v' + pkg.version + '（package.json 注入）', st.version === pkg.version, st.version)
   check('内置上游 4 个（opencode/b-ai/openrouter/sensenova）', st.upstreams.length === 4, String(st.upstreams.length))
   check('每家内置上游带申请教程', st.upstreams.every((u) => Array.isArray(u.tutorial) && u.tutorial.length >= 3))
   check('模型列表含 auto', st.models.some((m) => m.id === 'auto'))

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/dushaobindoudou/dsh-freeroute/main/freeroute-dynamic/catalog/schema.md",
+  "$schema": "https://raw.githubusercontent.com/0xrushmoon/dsh-freeroute/main/freeroute-dynamic/catalog/schema.md",
   "name": "FreeRoute 免费模型目录",
   "version": 1,
   "updatedAt": "2026-08-21",

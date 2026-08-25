@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-freeroute.svg?style=flat-square)](https://www.npmjs.com/package/dsh-freeroute)
 [![License](https://img.shields.io/npm/l/dsh-freeroute.svg?style=flat-square)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/dushaobindoudou/dsh-freeroute/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/dushaobindoudou/dsh-freeroute/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/0xrushmoon/dsh-freeroute/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/0xrushmoon/dsh-freeroute/actions/workflows/ci.yml)
 
 Free-tier model aggregation for the
 [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/dsh) (dsh):
@@ -83,12 +83,21 @@ are optional and degrade gracefully when absent.
 
 ## Development
 
-- `freeroute-dynamic/` holds the same logic as dynamic-plugin sources
-  (host.js / client.js) with a 137-assertion integration suite:
+Layered sources (see `src/README.md`):
+
+- `src/` is the single hand-edited authority, split into `src/host/` (20
+  fragments: constants → catalog parse → context/state → keys/probe/models/
+  health → transport/router/http → takeover/rpc/commands/endpoint/boot) and
+  `src/client/` (10 fragments: styles/context → panel state/header/upstreams/
+  advanced/models → models page/integration/plugin tail).
+- `npm run build:dynamic` assembles `src/**` into `freeroute-dynamic/
+  {host,client}.js` (single-function-body form for the dynamic plugin loader,
+  with the version injected from package.json).
+- `freeroute-dynamic/` carries a 137-assertion integration suite:
   `node freeroute-dynamic/test/integration.mjs`.
-- `npm run build:static` mechanically generates `lib/` from those sources
-  (the dynamic RPC layer is swapped for a Typert Remote + Connection carrier)
-  — never hand-edit just one side.
+- `npm run build:static` mechanically generates `lib/` from those assembled
+  sources (the dynamic RPC layer is swapped for a Typert Remote + Connection
+  carrier) — never hand-edit just one side; `npm run build:static` runs both.
 - `npm run lint && npm test` — lint plus a smoke test on a real cordis root.
 - **Module-instance rule**: `@deepseek-ai/dsh-typert-protocol` must resolve to
   the SAME physical copy the dsh host uses. A private pnpm copy makes the

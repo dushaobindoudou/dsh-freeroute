@@ -1,4 +1,4 @@
-const VERSION = '0.5.0'
+const VERSION = '0.7.0'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
 const UA = 'deepseek-harness/0.1.0-rc.6 (+https://github.com/deepseek-ai/deepseek-harness)'
@@ -1043,7 +1043,7 @@ return {
         if (key) argv.push('-H', 'authorization: Bearer ' + key)
         argv.push(
           '-H', 'user-agent: ' + UA,
-          '-H', 'http-referer: https://github.com/dushaobindoudou/dsh-freeroute',
+          '-H', 'http-referer: https://github.com/0xrushmoon/dsh-freeroute',
           '-H', 'x-title: dsh-freeroute',
           '--data-binary', '@-', '-w', TRAILER)
         try {

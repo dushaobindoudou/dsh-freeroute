@@ -7,6 +7,11 @@ export default [
       '.npm-cache/**',
       'coverage/**',
       'dist/**',
+      // Both are assembled/generated from src/ by scripts/build-dynamic.mjs
+      // (+ build-static*.mjs); their free identifiers (harness, __nodeFs,
+      // React, styles, host) only resolve inside the assembled scope. The
+      // assembled lib/ output IS linted, so fragments stay covered there.
+      'src/**',
       'freeroute-dynamic/**',
     ],
   },

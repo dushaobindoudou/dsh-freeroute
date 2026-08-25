@@ -59,9 +59,9 @@ const out = `/**
  * 默认 | 免费 tab bar below the intro (client-side; Typert Remote
  * \`freeroute\` carries the panel data).
  *
- * Ported from the battle-tested dynamic-plugin body (freeroute-dynamic/,
- * integration-tested 69/69) — do not hand-edit one side only.
- */
+ * Assembled from src/ (scripts/build-dynamic.mjs) into the dynamic-plugin
+ * body (freeroute-dynamic/), integration-tested (137 assertions) - edit
+ * src/, never the generated files. */
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'

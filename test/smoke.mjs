@@ -3,7 +3,7 @@
 // HTTP upstreams, then asserts: adapter registration, Typert Remote delegation
 // (freeroute namespace), patch validation + persistence, transparent failover
 // before first token, and auto-takeover of the default model.
-// Full behavioral coverage (65 assertions) lives in
+// Full behavioral coverage (137 assertions) lives in
 // freeroute-dynamic/test/integration.mjs against the same source body.
 import { createServer } from 'node:http'
 import { readFileSync, unlinkSync } from 'node:fs'
@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
+
+const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'))
 
 const here = dirname(fileURLToPath(import.meta.url))
 // JSON 配置层指向临时文件：绝不触碰真实 ~/.dsh/freeroute.json
@@ -199,7 +201,7 @@ assert.equal(remote.typertRemote.namespace, 'freeroute', 'RPC 命名空间为 fr
 
 console.log('■ 2. Remote 委托与状态')
 const st = await remote.state({})
-assert.equal(st.version, '0.5.0', '版本号')
+assert.equal(st.version, pkg.version, '版本号（与 package.json 同步）')
 assert.equal(st.upstreams.length, 4, '内置上游 4 个（opencode/b-ai/openrouter/sensenova）')
 assert.ok(st.upstreams.every((u) => Array.isArray(u.tutorial) && u.tutorial.length >= 3), '每家内置上游带申请教程')
 assert.ok((await remote.setKey({ id: 'openrouter', key: 'smoke-or-key' })).ok, '预置 openrouter Key')

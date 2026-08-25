@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-freeroute.svg?style=flat-square)](https://www.npmjs.com/package/dsh-freeroute)
 [![License](https://img.shields.io/npm/l/dsh-freeroute.svg?style=flat-square)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/dushaobindoudou/dsh-freeroute/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/dushaobindoudou/dsh-freeroute/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/0xrushmoon/dsh-freeroute/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/0xrushmoon/dsh-freeroute/actions/workflows/ci.yml)
 
 [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/dsh)（dsh）的
 免费模型聚合代理：注册 `freeroute` 模型提供方，聚合多家免费额度上游
@@ -68,10 +68,20 @@ dsh plugin --profile web add dsh-freeroute
 
 ## 开发
 
-- `freeroute-dynamic/`：同一逻辑的动态插件源（host.js / client.js），集成
-  测试 137 项：`node freeroute-dynamic/test/integration.mjs`。
-- `npm run build:static` 从动态源机械生成 `lib/`（RPC 层替换为 Typert
-  Remote + Connection 载体），请勿只手改一侧。
+分层源码（详见 `src/README.md`）：
+
+- `src/` 是唯一手改入口，按层拆片：`src/host/`（20 片：常量 → 目录解析 →
+  上下文/状态 → 密钥/探测/模型/健康 → 传输/路由/HTTP → 接管/RPC/命令/端点/
+  启动）、`src/client/`（10 片：样式/上下文 → 面板状态/头部/上游/高级/模型 →
+  模型页/集成/插件尾）。
+- `npm run build:dynamic` 把 `src/**` 装配成 `freeroute-dynamic/
+  {host,client}.js`（动态加载器要求的单函数体形态，版本号从 package.json
+  注入）。
+- `freeroute-dynamic/` 带集成测试 137 项：
+  `node freeroute-dynamic/test/integration.mjs`。
+- `npm run build:static` 从装配产物机械生成 `lib/`（RPC 层替换为 Typert
+  Remote + Connection 载体），请勿只手改一侧；`build:static` 会先跑
+  `build:dynamic`。
 - `npm run lint && npm test`：lint + 真实 cordis 根上的冒烟测试。
 - **模块同一性**：`@deepseek-ai/dsh-typert-protocol` 必须与 dsh 宿主解析到
   同一份物理副本。workspace 自带 pnpm 副本时，Typert Remote marker 类与宿主
