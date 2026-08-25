@@ -17,7 +17,7 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['lib/index.js', 'test/**/*.mjs', 'scripts/**/*.mjs', 'eslint.config.js'],
+    files: ['lib/index.js', 'smoke-host.mjs', 'test/**/*.mjs', 'scripts/**/*.mjs', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',
