@@ -99,7 +99,9 @@
           lastSyncAt: catalogMeta.lastSyncAt,
           lastSyncError: catalogMeta.lastError || null,
           lastCount: catalogMeta.lastCount,
-          lastFormat: catalogMeta.lastFormat
+          lastFormat: catalogMeta.lastFormat,
+          lastSyncUrl: catalogMeta.lastSyncUrl || null,
+          lastUsedFallback: catalogMeta.lastUsedFallback
         },
         currentSelection: current,
         totals: { requests: requests, ok: ok, failed: failed, tokensIn: tokensIn, tokensOut: tokensOut },

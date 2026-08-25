@@ -14,7 +14,10 @@
         }
         const catUrl = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
         const catNote = (userConfig.catalog && userConfig.catalog.remoteUrl) ? '' : '（内置默认）'
-        lines.push('就绪上游 ' + ready + '/' + ups.length + '；远程目录: ' + catUrl + catNote + (catalogMeta.lastSyncAt ? '（上次同步 ' + new Date(catalogMeta.lastSyncAt).toISOString() + '）' : ''))
+        const catSynced = catalogMeta.lastSyncUrl
+          ? ((catalogMeta.lastUsedFallback ? '（已回退备份源 ' : '（源 ') + catalogMeta.lastSyncUrl + '）')
+          : ''
+        lines.push('就绪上游 ' + ready + '/' + ups.length + '；远程目录: ' + catUrl + catNote + catSynced + (catalogMeta.lastSyncAt ? '（上次同步 ' + new Date(catalogMeta.lastSyncAt).toISOString() + '）' : ''))
         lines.push('把默认模型切到 ' + ROUTE + '/auto 即可开始使用；外部工具可用 ' + (webServer !== undefined ? ('http://127.0.0.1:' + webServer.port + '/freeroute/v1') : '（webServer 未挂载）'))
         return { kind: 'success', text: lines.join('\n') }
       })

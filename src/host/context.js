@@ -8,9 +8,12 @@
     let webServer = ctx.get('webServer')
     let commands = ctx.get('commands')
 
-    // 内置默认远程目录源：用户未显式配置 catalog.remoteUrl 时回退到此源，
-    // 让全新安装自动拉取免费模型目录（Cloudflare Pages 静态 JSON）。
+    // 内置默认远程目录源（主源）：用户未显式配置 catalog.remoteUrl 时回退到此源，
+    // 让全新安装自动拉取免费模型目录（Cloudflare 新账号自定义域名）。
     const DEFAULT_CATALOG_URL = 'https://config.freetokenbox.com/freeroute.json'
+    // 内置兜底备份源：主源不可达/不安全时自动回退（Cloudflare Pages 默认子域，
+    // 不依赖自定义域名解析，仅作容灾，内容同主源）。
+    const BACKUP_CATALOG_URL = 'https://freeroute-catalog.pages.dev/freeroute.json'
 
     let userConfig = { order: [], upstreams: {} }
     let takeoverDone = false
@@ -18,7 +21,7 @@
     const stats = new Map()
     const health = new Map()
     const remoteUpstreams = new Map()
-    const catalogMeta = { lastSyncAt: null, lastError: '', lastCount: 0, lastFormat: null }
+    const catalogMeta = { lastSyncAt: null, lastError: '', lastCount: 0, lastFormat: null, lastSyncUrl: '', lastUsedFallback: false }
     let curlCache = null
 
     // ---- 配置持久化：独立 JSON 文件优先（迁移/替换只需拷一个文件），settings 兜底 ----

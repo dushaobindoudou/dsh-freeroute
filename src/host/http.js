@@ -54,34 +54,55 @@
     }
 
     async function syncCatalog() {
-      const url = (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL
-      if (!url) { catalogMeta.lastError = '未配置远程目录 URL'; return { ok: false, error: catalogMeta.lastError } }
-      try {
-        const r = await rawGet(url, 30000)
-        if (r.status !== 0 && (r.status < 200 || r.status >= 300)) throw mkFail('目录下载失败 HTTP ' + r.status + (r.errTail ? ' · ' + r.errTail : ''), 'HTTP_' + r.status)
-        const parsed = parseCatalog(r.body)
-        remoteUpstreams.clear()
-        for (const e of parsed.entries) remoteUpstreams.set(e.id, e)
-        // 目录自带 apikey 列表 -> 整环写入凭据（KEY / KEY_2 …，多余旧编号清掉）
-        let imported = 0
-        for (const e of parsed.entries) {
-          if (!Array.isArray(e.apikeys) || e.apikeys.length === 0) continue
-          try {
-            const refs = keyRefsFor(e)
-            for (let i = 0; i < e.apikeys.length; i++) await credentials.set(refs[i], e.apikeys[i])
-            for (let i = e.apikeys.length; i < refs.length; i++) { try { await credentials.unset(refs[i]) } catch (e2) { } }
-            imported += 1
-          } catch (e2) { }
+      // 主源：用户显式配置的 remoteUrl，否则内置默认（config.freetokenbox.com）。
+      // 仅在「使用内置默认主源」时挂备份源 freeroute-catalog.pages.dev：
+      // 用户若显式配置其它源，则尊重其选择，失败时直接报错而不静默切换。
+      const configured = userConfig.catalog && userConfig.catalog.remoteUrl
+      const primary = configured || DEFAULT_CATALOG_URL
+      const candidates = configured ? [primary] : [primary, BACKUP_CATALOG_URL]
+      let lastErr = ''
+      for (let i = 0; i < candidates.length; i++) {
+        const url = candidates[i]
+        try {
+          const r = await rawGet(url, 30000)
+          if (r.status !== 0 && (r.status < 200 || r.status >= 300)) throw mkFail('目录下载失败 HTTP ' + r.status + (r.errTail ? ' · ' + r.errTail : ''), 'HTTP_' + r.status)
+          const parsed = parseCatalog(r.body)
+          remoteUpstreams.clear()
+          for (const e of parsed.entries) remoteUpstreams.set(e.id, e)
+          // 目录自带 apikey 列表 -> 整环写入凭据（KEY / KEY_2 …，多余旧编号清掉）
+          let imported = 0
+          for (const e of parsed.entries) {
+            if (!Array.isArray(e.apikeys) || e.apikeys.length === 0) continue
+            try {
+              const refs = keyRefsFor(e)
+              for (let k = 0; k < e.apikeys.length; k++) await credentials.set(refs[k], e.apikeys[k])
+              for (let k = e.apikeys.length; k < refs.length; k++) { try { await credentials.unset(refs[k]) } catch (e2) { } }
+              imported += 1
+            } catch (e2) { }
+          }
+          catalogMeta.lastSyncAt = Date.now()
+          catalogMeta.lastCount = parsed.entries.length
+          catalogMeta.lastFormat = parsed.format
+          catalogMeta.lastError = ''
+          catalogMeta.lastSyncUrl = url
+          catalogMeta.lastUsedFallback = (i > 0)
+          const tail = (i > 0 ? '，已回退备份源' : '') + (imported > 0 ? ('，导入 ' + imported + ' 家 Key 环') : '')
+          console.log('[freeroute] 远程目录已同步: ' + parsed.entries.length + ' 个上游（' + parsed.format + ' 格式' + tail + '）来自 ' + url)
+          return { ok: true, count: parsed.entries.length, format: parsed.format, imported: imported, url: url, usedFallback: i > 0 }
+        } catch (e) {
+          lastErr = emsg(e)
+          // 还有备份源可试：记录并继续；否则在此源失败处收尾
+          if (i < candidates.length - 1) {
+            console.log('[freeroute] 主源 ' + url + ' 同步失败（' + lastErr + '），尝试备份源…')
+            continue
+          }
+          catalogMeta.lastError = lastErr
+          catalogMeta.lastSyncUrl = url
+          catalogMeta.lastUsedFallback = false
+          return { ok: false, error: lastErr }
         }
-        catalogMeta.lastSyncAt = Date.now()
-        catalogMeta.lastCount = parsed.entries.length
-        catalogMeta.lastFormat = parsed.format
-        catalogMeta.lastError = ''
-        console.log('[freeroute] 远程目录已同步: ' + parsed.entries.length + ' 个上游（' + parsed.format + ' 格式' + (imported > 0 ? ('，导入 ' + imported + ' 家 Key 环') : '') + '）')
-        return { ok: true, count: parsed.entries.length, format: parsed.format, imported: imported }
-      } catch (e) {
-        catalogMeta.lastError = emsg(e)
-        return { ok: false, error: emsg(e) }
       }
+      catalogMeta.lastError = lastErr || '未配置远程目录 URL'
+      return { ok: false, error: catalogMeta.lastError }
     }
 
