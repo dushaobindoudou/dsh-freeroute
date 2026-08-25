@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-08-25
+
+### Fixed
+
+- 内置默认主源 `config.freetokenbox.com` 偶发不可达/访问不安全时，自动回退到
+  备份源 `freeroute-catalog.pages.dev`（仅当使用内置默认主源时挂载备份；用户显式
+  配置其它 `catalog.remoteUrl` 时尊重其选择，不静默切换）。
+- `syncCatalog` 主源失败（非 2xx 或传输异常）自动重试备份源，并记录实际同步源
+  `lastSyncUrl` 与是否回退 `lastUsedFallback`，状态层与 `status` 命令可见。
+
+## [0.7.0] - 2026-08-25
+
+### Changed
+
+- 内置默认远程目录源切换到 `config.freetokenbox.com`（自有 Cloudflare 自定义域名）。
+
 ## [0.6.0] - 2026-08-25
 
 ### Added
