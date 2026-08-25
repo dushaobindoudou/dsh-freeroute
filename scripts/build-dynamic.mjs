@@ -7,11 +7,13 @@
 // Assembly is pure ordered concatenation around fixed wrapper strings, so the
 // generated files stay byte-stable and diffable in CI (lib-drift guard).
 //
-// Scope model - fragments share ONE function scope per target:
-//   src/host/00-40 are top-level; 50-99 live inside apply(ctx) (4-space
-//   indent) and are spliced between the plugin wrapper's open/close lines.
-//   src/client/00-05 are top-level; 10-50 live inside Section() (2-space
-//   indent); 60-80 are top-level again.
+// Scope model - fragments share ONE function scope per target. Which scope a
+// fragment lives in is decided solely by which manifest array below lists it
+// (file names carry no ordering or scope information):
+//   HOST_HEAD is top-level; HOST_BODY lives inside apply(ctx) (4-space
+//   indent), spliced between the plugin wrapper's open/close lines.
+//   CLIENT_TOP is top-level; CLIENT_PANEL lives inside Section() (2-space
+//   indent); CLIENT_TAIL is top-level again.
 // Version is injected from package.json (single source of truth).
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -25,28 +27,28 @@ const VERSION_PLACEHOLDER = "'__FREEROUTE_PACKAGE_VERSION__'"
 
 // ---- host: top-level head, plugin wrapper opens apply(ctx), body, close ----
 const HOST_HEAD = [
-  '00-constants.js',
-  '10-builtin.js',
-  '20-utils.js',
-  '30-config-schema.js',
-  '40-catalog-parse.js',
+  'constants.js',
+  'builtin.js',
+  'utils.js',
+  'config-schema.js',
+  'catalog-parse.js',
 ]
 const HOST_BODY = [
-  '50-context.js',
-  '55-registry.js',
-  '60-keys.js',
-  '65-probe.js',
-  '70-models.js',
-  '75-health.js',
-  '80-transport.js',
-  '85-router.js',
-  '88-http.js',
-  '90-takeover.js',
-  '92-state.js',
-  '94-rpc.js',
-  '96-commands.js',
-  '97-endpoint.js',
-  '99-boot.js',
+  'context.js',
+  'registry.js',
+  'keys.js',
+  'probe.js',
+  'models.js',
+  'health.js',
+  'transport.js',
+  'router.js',
+  'http.js',
+  'takeover.js',
+  'state.js',
+  'rpc.js',
+  'commands.js',
+  'endpoint.js',
+  'boot.js',
 ]
 // Must stay byte-identical to the marker build-static.mjs splits on.
 const HOST_WRAPPER_OPEN = "return {\n  inject: ['llm', 'timer', 'settings', 'credentials', 'subprocess'],\n  apply(ctx) {\n"
@@ -54,20 +56,20 @@ const HOST_WRAPPER_CLOSE = '  }\n}\n'
 
 // ---- client: styles/context, Section() body, models page + plugin tail ----
 const CLIENT_TOP = [
-  '00-styles.js',
-  '05-context.js',
+  'styles.js',
+  'context.js',
 ]
 const CLIENT_PANEL = [
-  '10-panel-state.js',
-  '20-panel-header.js',
-  '30-panel-upstreams.js',
-  '40-panel-advanced.js',
-  '50-panel-models.js',
+  'panel-state.js',
+  'panel-header.js',
+  'panel-upstreams.js',
+  'panel-advanced.js',
+  'panel-models.js',
 ]
 const CLIENT_TAIL = [
-  '60-models-page.js',
-  '70-integration.js',
-  '80-plugin.js',
+  'models-page.js',
+  'integration.js',
+  'plugin.js',
 ]
 // Must stay byte-identical to the markers build-static-client.mjs rewrites.
 const SECTION_OPEN = 'function Section(props) {\n'
@@ -78,7 +80,7 @@ const cat = (dir, names) => names.map((n) => frag(dir, n)).join('')
 
 let host = cat('host', HOST_HEAD) + HOST_WRAPPER_OPEN + cat('host', HOST_BODY) + HOST_WRAPPER_CLOSE
 const nSub = host.split(VERSION_PLACEHOLDER).length - 1
-if (nSub !== 1) throw new Error('VERSION placeholder must occur exactly once in src/host/00-constants.js, found ' + nSub)
+if (nSub !== 1) throw new Error('VERSION placeholder must occur exactly once in src/host/constants.js, found ' + nSub)
 host = host.replace(VERSION_PLACEHOLDER, "'" + pkg.version + "'")
 
 const client = cat('client', CLIENT_TOP) + SECTION_OPEN + cat('client', CLIENT_PANEL) + SECTION_CLOSE + cat('client', CLIENT_TAIL)
