@@ -20,6 +20,27 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  # Guard against lib/ drift: lib/ is generated from freeroute-dynamic/ by
+  # build:static. Regenerate and fail if the committed lib/ differs - a
+  # contributor who edits host.js/client.js without rebuilding would
+  # otherwise pass CI with stale artifacts.
+  lib-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:static
+      - name: Fail if lib/ is out of sync with freeroute-dynamic/
+        run: |
+          if ! git diff --exit-code -- lib/; then
+            echo "::error::lib/ is stale. Run 'npm run build:static' and commit the result." >&2
+            exit 1
+          fi
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -31,5 +52,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
       - run: npm ci
+      - run: npm run build:static
       - run: npm test
