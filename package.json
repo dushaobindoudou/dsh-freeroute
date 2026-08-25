@@ -1,7 +1,7 @@
 {
   "name": "dsh-freeroute",
-  "version": "0.2.0",
-  "description": "Free-tier model routing for the DeepSeek Harness (dsh) - smart OpenRouter free-model ranking, runtime takeover via the agent/request waterfall, mid-step rotation on rate limits; paid config untouched unless asked.",
+  "version": "0.7.1",
+  "description": "Free-tier model aggregation for the DeepSeek Harness (dsh): registers the freeroute provider over a pool of free-quota upstreams (OpenCode Zen / B.AI / OpenRouter / SenseNova built in, plus remote catalogs and custom gateways), transparent failover before first token, multi-key rotation with per-key failure visibility, user-supplied API keys with per-upstream signup tutorials, a settings panel, and an OpenAI-compatible local endpoint.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -18,18 +18,21 @@
     "CHANGELOG.md"
   ],
   "scripts": {
+    "build:static": "npm run build:dynamic && node scripts/build-static.mjs && node scripts/build-static-client.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "node smoke-host.mjs",
-    "prepublishOnly": "npm run lint && npm test"
+    "test": "node test/smoke.mjs",
+    "postinstall": "node scripts/link-host-typert.mjs",
+    "prepublishOnly": "npm run build:static && npm run lint && npm test",
+    "build:dynamic": "node scripts/build-dynamic.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dushaobindoudou/dsh-freeroute.git"
+    "url": "git+https://github.com/0xrushmoon/dsh-freeroute.git"
   },
-  "homepage": "https://github.com/dushaobindoudou/dsh-freeroute",
+  "homepage": "https://github.com/0xrushmoon/dsh-freeroute",
   "bugs": {
-    "url": "https://github.com/dushaobindoudou/dsh-freeroute/issues"
+    "url": "https://github.com/0xrushmoon/dsh-freeroute/issues"
   },
   "keywords": [
     "deepseek-harness",
@@ -38,7 +41,9 @@
     "cordis-plugin",
     "openrouter",
     "free-tier",
-    "llm-routing"
+    "llm-routing",
+    "failover",
+    "openai-compatible"
   ],
   "author": "dushaobindoudou",
   "license": "MIT",
@@ -47,14 +52,27 @@
     "provenance": true
   },
   "dsh": {
+    "client": {
+      "platform": "web"
+    },
     "bundle": {
       "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-typert-protocol": ">=0.1.0-rc.6 <0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-typert-protocol": {
+      "optional": false
     }
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.6",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.8.1"
   },

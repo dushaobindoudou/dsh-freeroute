@@ -20,6 +20,28 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  # Guard against generated-code drift: freeroute-dynamic/ is assembled from
+  # src/ by build:dynamic, and lib/ is transformed from that by build:static.
+  # Regenerate both stages and fail if the committed output differs - a
+  # contributor who edits src/ without rebuilding would otherwise pass CI
+  # with stale artifacts.
+  lib-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:static
+      - name: Fail if generated files are out of sync with src/
+        run: |
+          if ! git diff --exit-code -- lib/ freeroute-dynamic/host.js freeroute-dynamic/client.js; then
+            echo "::error::Generated files are stale. Run 'npm run build:static' and commit the result." >&2
+            exit 1
+          fi
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -31,5 +53,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
       - run: npm ci
+      - run: npm run build:static
       - run: npm test

@@ -1,46 +1,3 @@
-/**
- * dsh-freeroute — client half (web).
- *
- * 设置 → 模型 页内嵌：包装 dsh 内置模型设置页（可逆换血 entry.component），
- * 标题后插「免费」按钮、DeepSeek 行上方自绘 freeroute 配置行（auto 自动路
- * 由，可编辑不可删），两者弹出模态承载完整 FreeRoute 面板（上游卡片/启停/
- * 优先级/申请教程/密钥保存/连通测试/健康统计、一键集成向导、远程目录、自
- * 定义上游表单）。宿主无 models 条目时退回独立 freeroute 设置页。数据经
- * host `freeroute` Remote 命名空间（Connection RPC `/api`）读写，密钥只进
- * credentials 服务。
- *
- * Ported from freeroute-dynamic/client.js — keep both sides in sync.
- */
-window.__ModuleLoader__.load({
-	id: "dsh-freeroute",
-	factory: (require) => {
-		const module = { exports: {} };
-		const exports = module.exports;
-		const react = require("react");
-		const React = react;
-
-		let connectionSvc = null;
-
-		/**
-		 * Invoke one host `freeroute/<method>` Remote endpoint over the client
-		 * Connection RPC carrier. Returns the business value; business
-		 * `{ ok: false, error }` shapes stay return values for the panel's
-		 * error display paths (matching the host contract).
-		 */
-		const callHost = async (method, request) => {
-			if (connectionSvc === null) throw new Error("连接服务尚未就绪");
-			const envelope = await connectionSvc.rpc.call("/api", "freeroute/" + method, {
-				args: { request: request === undefined ? null : request },
-			});
-			if (envelope !== null && typeof envelope === "object" && envelope.ok === false) {
-				throw new Error((envelope.error && envelope.error.message) || "调用失败");
-			}
-			if (envelope !== null && typeof envelope === "object" && envelope.ok === true) {
-				return envelope.value;
-			}
-			return envelope;
-		};
-
 const CSS = [
   '.frp { display: flex; flex-direction: column; gap: 14px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
   '.frp-card { background: var(--dsw-alias-bg-layer-1, transparent); border: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.25)); border-radius: 10px; padding: 12px 14px; }',
@@ -125,7 +82,11 @@ const CSS = [
   '.frp-models-scope { display: contents; }'
 ].join('\n')
 
-function Section(_props) {
+// ctx 是 apply(ctx) 的参数，组件渲染时不在作用域内；用模块级引用转交。
+// （styles / host / React 是 client 求值环境提供的全局，ctx 不是。）
+let ctxRef = null
+
+function Section(props) {
   const st0 = React.useState(null)
   const stateVal = st0[0]
   const setState = st0[1]
@@ -166,19 +127,19 @@ function Section(_props) {
   React.useEffect(function () {
     let alive = true
     const tick = function () {
-      callHost('state').then(function (v) { if (alive) setState(v) }).catch(function (e) { if (alive) setError(String((e && e.message) || e)) })
+      host.call('freeroute.state').then(function (v) { if (alive) setState(v) }).catch(function (e) { if (alive) setError(String((e && e.message) || e)) })
     }
     tick()
-    const d = (function () { const h = setInterval(tick, 5000); return function () { clearInterval(h) } })()
+    const d = ctxRef.interval(tick, 5000)
     return function () { alive = false; d() }
   }, [])
 
   const refresh = function () {
-    callHost('state').then(function (v) { setState(v) }).catch(function () { })
+    host.call('freeroute.state').then(function (v) { setState(v) }).catch(function (e) { })
   }
   const act = function (method, args, tag, after) {
     setBusy(tag)
-    callHost(method, args).then(function (r) {
+    host.call(method, args).then(function (r) {
       setBusy('')
       if (r && r.ok === false) { setError(r.error || '操作失败'); return }
       setError('')
@@ -244,7 +205,7 @@ function Section(_props) {
           onChange: function (e) {
             const p = {}
             p.autoTakeover = !!e.target.checked
-            act('applyPatch', { patch: p }, 'tk')
+            act('freeroute.apply-patch', { patch: p }, 'tk')
           }
         }),
         React.createElement('span', { className: 'frp-slider' }),
@@ -293,12 +254,12 @@ function Section(_props) {
         React.createElement('button', {
           key: 'up', className: 'frp-btn frp-btn-ghost frp-iconbtn', title: '上移',
           disabled: busy === 'mv-' + u.id || u.priority === 0,
-          onClick: function (e) { e.stopPropagation(); act('applyPatch', { patch: movePatch('up', u.id) }, 'mv-' + u.id) }
+          onClick: function (e) { e.stopPropagation(); act('freeroute.apply-patch', { patch: movePatch('up', u.id) }, 'mv-' + u.id) }
         }, '↑'),
         React.createElement('button', {
           key: 'dn', className: 'frp-btn frp-btn-ghost frp-iconbtn', title: '下移',
           disabled: busy === 'mv-' + u.id || u.priority === st.upstreams.length - 1,
-          onClick: function (e) { e.stopPropagation(); act('applyPatch', { patch: movePatch('down', u.id) }, 'mv-' + u.id) }
+          onClick: function (e) { e.stopPropagation(); act('freeroute.apply-patch', { patch: movePatch('down', u.id) }, 'mv-' + u.id) }
         }, '↓'),
         React.createElement('label', {
           key: 'en', className: 'frp-switch', title: '启用 / 停用该上游',
@@ -308,7 +269,7 @@ function Section(_props) {
             type: 'checkbox',
             checked: u.enabled,
             disabled: busy === 'en-' + u.id,
-            onChange: function (e) { act('applyPatch', { patch: patchUpstream(u.id, { enabled: !!e.target.checked }) }, 'en-' + u.id) }
+            onChange: function (e) { act('freeroute.apply-patch', { patch: patchUpstream(u.id, { enabled: !!e.target.checked }) }, 'en-' + u.id) }
           }),
           React.createElement('span', { className: 'frp-slider' })),
         React.createElement('span', { className: 'frp-chev' + (open ? ' frp-chev-open' : ''), key: 'chev' }, '›'))))
@@ -364,7 +325,7 @@ function Section(_props) {
               }
             }
             if (v && v.loaded) { fill(v.keys); return }
-            callHost('getKeys', { id: u.id }).then(function (r) {
+            host.call('freeroute.get-keys', { id: u.id }).then(function (r) {
               const keys = (r && r.ok && Array.isArray(r.keys)) ? r.keys : []
               const nv = {}
               nv[u.id] = { loaded: true, keys: keys }
@@ -389,7 +350,7 @@ function Section(_props) {
           const n = {}
           n[u.id] = { pending: true }
           setTests(Object.assign({}, tests, n))
-          callHost('test', { id: u.id }).then(function (r) {
+          host.call('freeroute.test', { id: u.id }).then(function (r) {
             const n2 = {}
             n2[u.id] = r
             setTests(Object.assign({}, tests, n2))
@@ -404,13 +365,13 @@ function Section(_props) {
       actRow.push(React.createElement('button', {
         key: 'probe', className: 'frp-btn',
         disabled: busy === 'pb-' + u.id,
-        onClick: function () { act('probe', { id: u.id }, 'pb-' + u.id) }
+        onClick: function () { act('freeroute.probe', { id: u.id }, 'pb-' + u.id) }
       }, busy === 'pb-' + u.id ? '探测中…' : '探测模型'))
       if (!u.noAuth) {
         actRow.push(React.createElement('button', {
           key: 'save', className: 'frp-btn frp-btn-primary',
           disabled: busy === 'key-' + u.id || !(drafts[draftKey] || '').trim(),
-          onClick: function () { act('setKey', { id: u.id, key: drafts[draftKey] }, 'key-' + u.id, function () {
+          onClick: function () { act('freeroute.set-key', { id: u.id, key: drafts[draftKey] }, 'key-' + u.id, function () {
             setDraft(draftKey, '')
             const nv = {}; nv[u.id] = { loaded: false, keys: null }
             setKeyViews(Object.assign({}, keyViews, nv))
@@ -489,8 +450,8 @@ function Section(_props) {
       const url = (catUrl === null ? st.catalog.remoteUrl : catUrl).trim()
       const cat = {}
       cat.catalog = { remoteUrl: url }
-      act('applyPatch', { patch: cat }, 'cat', function () {
-        callHost('catalogSync').then(function (r) {
+      act('freeroute.apply-patch', { patch: cat }, 'cat', function () {
+        host.call('freeroute.catalog.sync').then(function (r) {
           if (r && r.ok) setError('')
           else setError((r && r.error) || '同步失败')
           refresh()
@@ -501,7 +462,7 @@ function Section(_props) {
   catRow.push(React.createElement('button', {
     key: 'sync', className: 'frp-btn',
     disabled: busy === 'catsync',
-    onClick: function () { act('catalogSync', {}, 'catsync') }
+    onClick: function () { act('freeroute.catalog.sync', {}, 'catsync') }
   }, '仅同步'))
   catKids.push(React.createElement('div', { className: 'frp-form-row', key: 'row' }, catRow))
   catKids.push(React.createElement('pre', { className: 'frp-pre', key: 'fmt' },
@@ -885,28 +846,17 @@ function freerouteModelsIntegration(slots) {
   return { attempt: attempt, dispose: dispose }
 }
 
-		const inject = ["connection", "slots"];
-
-		function apply(c) {
-			connectionSvc = c.get("connection");
-			const slots = c.get("slots");
-			if (slots === undefined) return;
-			// Scoped style sheet: removed with the plugin fiber.
-			const styleEl = document.createElement("style");
-			styleEl.textContent = CSS;
-			document.head.appendChild(styleEl);
-			// 设置 → 模型 页内嵌集成：包装内置 models 条目（停止时还原）。
-			c.effect(() => slots.inject("settings.section", () => {
-				const integ = freerouteModelsIntegration(slots);
-				const stop = slots.subscribe("settings.section", integ.attempt);
-				integ.attempt();
-				return [stop, integ.dispose];
-			}), "dsh-freeroute: models-page integration");
-			return () => { styleEl.remove(); };
-		}
-
-		exports.apply = apply;
-		exports.inject = inject;
-		return module.exports;
-	}
-});
+return {
+  inject: ['slots', 'timer'],
+  apply(ctx) {
+    ctxRef = ctx
+    const slots = ctx.slots
+    styles.insert(CSS)
+    slots.inject('settings.section', function () {
+      const integ = freerouteModelsIntegration(slots)
+      const stop = slots.subscribe('settings.section', integ.attempt)
+      integ.attempt()
+      return [stop, integ.dispose]
+    })
+  }
+}

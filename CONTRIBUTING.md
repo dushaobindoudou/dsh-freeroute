@@ -23,7 +23,7 @@ whether it belongs here or upstream in dsh.
 ## Development setup
 
 ```bash
-git clone https://github.com/dushaobindoudou/dsh-freeroute.git
+git clone https://github.com/0xrushmoon/dsh-freeroute.git
 cd dsh-freeroute
 npm install
 ```
