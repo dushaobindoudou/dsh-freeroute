@@ -108,13 +108,15 @@ Layered sources (see `src/README.md`):
   carrier) — never hand-edit just one side; `npm run build:static` runs both.
 - `npm run lint && npm test` — lint plus a smoke test on a real cordis root.
 - **Module-instance rule**: `@deepseek-ai/dsh-typert-protocol` must resolve to
-  the SAME physical copy the dsh host uses. A private pnpm copy makes the
-  Typert Remote marker class differ from the host's, so `/api/freeroute/*`
-  never registers (client sees `HTTP 404`). `postinstall` runs
-  `scripts/link-host-typert.mjs`, which symlinks the workspace package onto
-  the global dsh install's copy (same fix as dsh-refine). If you ever see
-  `transport failure for /api/freeroute/state: HTTP 404` after an install,
-  run `node scripts/link-host-typert.mjs` and restart `dsh web`.
+  the SAME physical copy the dsh host uses. The host gateway reads Remote
+  method markers from a WeakMap private to ITS copy of the module; a private
+  pnpm copy in the plugin workspace registers into a different WeakMap, so
+  `/api/freeroute/*` silently registers zero routes (client sees `HTTP 404`,
+  no error anywhere). Since v0.7.3 `lib/index.js` resolves the host's own copy
+  at load time (running dsh CLI entry → global npm layout → fallback), so no
+  postinstall, symlink, or host version is required. If you ever see
+  `transport failure for /api/freeroute/state: HTTP 404` on an older version,
+  upgrading to ≥0.7.3 fixes it permanently.
 
 ## Honest limits
 

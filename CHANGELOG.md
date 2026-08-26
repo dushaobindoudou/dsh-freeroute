@@ -8,6 +8,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- 移除失效的 `postinstall` 软链脚本：npm 发布包的 `files` 白名单从未包含
+  `scripts/`（脚本从未随包发布），该钩子在 pnpm 下被默认拦截、在 npm/yarn
+  下会因找不到脚本而安装失败。v0.7.3 的加载时宿主锚定已完全取代其作用，
+  删除后同时消除 pnpm 的 "Ignored build scripts" 提示噪音。
+- 其他电脑安装后切到「免费」面板报 `transport failure for /api/freeroute/state: http 404`
+  的根因修复：宿主按模块实例识别 Typert Remote 服务，pnpm v10 默认拦截
+  postinstall（typert 软链脚本无法执行）且旧版 dsh 无 profiles 模块自愈时，
+  插件解析到自己的 `@deepseek-ai/dsh-typert-protocol` 副本，类与宿主不同源，
+  `/api/freeroute/*` 全部静默 404。现在 `lib/index.js` 加载时按
+  「运行中的 dsh CLI 入口 → 全局 npm 布局 → 普通解析」顺序锚定宿主自己的副本，
+  不再依赖 postinstall 与宿主版本（同环境 A/B 验证：0.7.2 404 → 0.7.3 200）。
 - 自动接管不再覆盖用户已显式配置的默认模型（此前每次启动都会把
   `agent-default-model` 持久改写为 `freeroute/auto`，用户手动改回后重启又被清掉）。
   接管状态（`autoInjected` / `takeoverBackup`）持久化到配置文件，重启后关闭
