@@ -47,8 +47,18 @@
       try {
         const key = keyEntry.key
         const curl = await ensureCurl()
-        const url = String(upstream.baseUrl).replace(/\/+$/, '') + '/chat/completions'
-        const body = JSON.stringify(serializeRequest(options, model))
+        // 非标网关（如 GMI autoroute）可用 chatPath 覆盖默认的 /chat/completions
+        const url = String(upstream.baseUrl).replace(/\/+$/, '') + (upstream.chatPath || '/chat/completions')
+        // requestExtra：附加/覆盖请求体字段（仅标量），model:null 表示不发 model
+        const req = serializeRequest(options, model)
+        if (upstream.requestExtra) {
+          for (const k of Object.keys(upstream.requestExtra)) {
+            const v = upstream.requestExtra[k]
+            if (k === 'model' && v === null) delete req.model
+            else req[k] = v
+          }
+        }
+        const body = JSON.stringify(req)
         const argv = [curl, '-sS', '-N', '--connect-timeout', '15']
         if (upstream.proxy) argv.push('--proxy', String(upstream.proxy))
         argv.push('-X', 'POST', url,

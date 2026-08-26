@@ -109,6 +109,8 @@
         const merged = Object.assign({}, base)
         merged.source = 'custom'
         if (cu.baseUrl) merged.baseUrl = cu.baseUrl
+        if (cu.chatPath) merged.chatPath = cu.chatPath
+        if (cu.requestExtra) merged.requestExtra = cu.requestExtra
         if (cu.keyRef) merged.keyRef = cu.keyRef
         if (cu.noAuth) merged.noAuth = true
         if (cu.proxy) merged.proxy = String(cu.proxy)

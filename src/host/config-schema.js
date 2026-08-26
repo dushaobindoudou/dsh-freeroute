@@ -15,6 +15,15 @@ function sanitizeConfig(raw) {
         const c = v.custom
         const cu = {}
         if (typeof c.baseUrl === 'string' && /^https?:\/\//.test(c.baseUrl)) cu.baseUrl = c.baseUrl.trim().replace(/\/+$/, '')
+        // 非标网关：chatPath 覆盖 /chat/completions；requestExtra 附加标量体字段
+        if (typeof c.chatPath === 'string' && /^\/[\w\-./]*$/.test(c.chatPath)) cu.chatPath = c.chatPath
+        if (c.requestExtra && typeof c.requestExtra === 'object' && !Array.isArray(c.requestExtra)) {
+          const ex = {}
+          for (const p of Object.entries(c.requestExtra)) {
+            if (/^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(p[0]) && (p[1] === null || typeof p[1] === 'string' || typeof p[1] === 'number' || typeof p[1] === 'boolean')) ex[p[0]] = p[1]
+          }
+          if (Object.keys(ex).length > 0) cu.requestExtra = ex
+        }
         if (typeof c.proxy === 'string' && /^https?:\/\//.test(c.proxy)) cu.proxy = c.proxy.trim()
         if (Array.isArray(c.freeModels) && c.freeModels.length > 0) cu.freeModels = pickModelIds(c.freeModels)
         if (typeof c.keyRef === 'string' && c.keyRef.length > 0) cu.keyRef = c.keyRef

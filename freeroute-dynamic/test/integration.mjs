@@ -379,6 +379,40 @@ section('3c. 请求体内容透传（块数组与裸字符串两种形态）')
   check('清理 mock-body', rm3c.ok === true)
 }
 
+section('3d. 非标网关：chatPath + requestExtra（model 可省略）')
+{
+  // 模拟 GMI autoroute 一类网关：路径非 /chat/completions，请求体要求
+  // mode 字段且不传 model。
+  const seen = []
+  const portAR = await listen('autoroute', (req, res) => {
+    if (req.url !== '/ie/recommendation/autoroute') { res.writeHead(404); res.end('{}'); return }
+    let body = ''
+    req.on('data', function (c) { body += c })
+    req.on('end', function () {
+      seen.push(body)
+      try {
+        const o = JSON.parse(body)
+        if (o.mode !== 'balanced' || o.model !== undefined) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { message: 'expect mode=balanced and no model' } })); return }
+      } catch (e) { res.writeHead(400); res.end('{}'); return }
+      mkOk()(req, res)
+    })
+  })
+  const reg = await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-ar': { enabled: true, custom: { noAuth: true, baseUrl: 'http://127.0.0.1:' + portAR + '/ie/recommendation', chatPath: '/autoroute', requestExtra: { mode: 'balanced', model: null }, models: [{ id: 'ar-route', name: 'AR' }], defaultModel: 'ar-route', freeModels: ['ar-route'] } } } } })
+  check('chatPath + requestExtra 上游注册成功', reg.ok === true, JSON.stringify(reg))
+  const r = await collect(adapter.stream({ provider: 'freeroute', model: 'ar-route', messages: msg('ping') }))
+  check('非标路径请求出字', r.text === 'Mock reply OK', JSON.stringify(r.text))
+  check('请求体带 mode 且无 model 字段', seen.length > 0 && JSON.parse(seen[seen.length - 1]).mode === 'balanced' && !('model' in JSON.parse(seen[seen.length - 1])), seen[seen.length - 1] || '')
+  // 非法值被 sanitize 剔除：requestExtra 嵌套对象/危险 key 不进配置
+  const reg2 = await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-ar2': { enabled: true, custom: { noAuth: true, baseUrl: 'http://127.0.0.1:' + portAR, requestExtra: { '../evil': 1, nested: { a: 1 }, ok: 'x' }, models: [{ id: 'ar2' }], defaultModel: 'ar2' } } } } })
+  check('requestExtra 只收标量与安全 key', reg2.ok === true)
+  const cfgDisk = JSON.parse(readFileSync(CFG, 'utf8'))
+  const ar2 = cfgDisk.upstreams['mock-ar2'] && cfgDisk.upstreams['mock-ar2'].custom
+  check('落盘的 requestExtra 已剔除非法字段', ar2 && ar2.requestExtra && ar2.requestExtra.ok === 'x' && !('nested' in ar2.requestExtra) && !('../evil' in ar2.requestExtra), JSON.stringify(ar2 && ar2.requestExtra))
+  const rm = await rpc('freeroute.remove-upstream', { id: 'mock-ar' })
+  const rm2 = await rpc('freeroute.remove-upstream', { id: 'mock-ar2' })
+  check('清理 mock-ar / mock-ar2', rm.ok === true && rm2.ok === true)
+}
+
 section('4. 全部候选失败 → 错误暴露')
 {
   await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-ok': { enabled: false } } } })

@@ -42,6 +42,13 @@ function normalizeCatalogEntry(e) {
   }
   models.sort(function (a, b) { return b.contextWindow - a.contextWindow })
   const capped = models.slice(0, 24)
+  // 非标网关字段：chatPath 覆盖 /chat/completions；requestExtra 附加标量体字段
+  const ex = {}
+  if (e.requestExtra && typeof e.requestExtra === 'object' && !Array.isArray(e.requestExtra)) {
+    for (const p of Object.entries(e.requestExtra)) {
+      if (/^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(p[0]) && (p[1] === null || typeof p[1] === 'string' || typeof p[1] === 'number' || typeof p[1] === 'boolean')) ex[p[0]] = p[1]
+    }
+  }
   return {
     id: id,
     name: providerName || id,
@@ -49,6 +56,8 @@ function normalizeCatalogEntry(e) {
     keyRef: (typeof e.keyRef === 'string' && e.keyRef.length > 0) ? e.keyRef : ('FREEROUTE_' + id.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_KEY'),
     noAuth: e.noAuth === true,
     proxy: firstNonEmptyStr(e.proxy),
+    chatPath: (typeof e.chatPath === 'string' && /^\/[\w\-./]*$/.test(e.chatPath)) ? e.chatPath : '',
+    requestExtra: Object.keys(ex).length > 0 ? ex : undefined,
     freeModels: pickModelIds(e.freeModels),
     // 字段别名全英文：getkey/signup 均指申请 Key 的页面；教程字段以 tutorial
     // 为准（旧目录的中文字段名继续兼容，仅不再对外展示）。

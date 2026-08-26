@@ -87,6 +87,65 @@
           "contextWindow": 32768
         }
       ]
+    },
+    {
+      "id": "aihubmix",
+      "name": "AIHubMix",
+      "baseUrl": "https://aihubmix.com/v1",
+      "keyRef": "FREEROUTE_AIHUBMIX_API_KEY",
+      "signupUrl": "https://aihubmix.com",
+      "note": "聚合网关，-free 后缀模型免费（25+ 款：glm-5.3/minimax-m3/gemini 等）；国内网络通常需在自定义里配代理。",
+      "defaultModel": "coding-glm-5.3-free",
+      "models": [
+        {
+          "id": "coding-glm-5.3-free",
+          "name": "GLM 5.3 Coding (free)",
+          "contextWindow": 131072
+        },
+        {
+          "id": "hy3-free",
+          "name": "Hunyuan 3 (free)",
+          "contextWindow": 32768
+        },
+        {
+          "id": "minimax-m3-free",
+          "name": "MiniMax M3 (free)",
+          "contextWindow": 131072
+        },
+        {
+          "id": "gemini-3.6-flash-free",
+          "name": "Gemini 3.6 Flash (free)",
+          "contextWindow": 1048576
+        },
+        {
+          "id": "coding-kimi-k3-free",
+          "name": "Kimi K3 Coding (free)",
+          "contextWindow": 131072
+        },
+        {
+          "id": "gpt-oss-20b-free",
+          "name": "GPT-OSS 20B (free)",
+          "contextWindow": 131072
+        }
+      ]
+    },
+    {
+      "id": "askdiandian",
+      "name": "点点笔记预览 (dots3)",
+      "baseUrl": "https://note3-prev-api.askdiandian.com/v1",
+      "keyRef": "FREEROUTE_ASKDIANDIAN_API_KEY",
+      "note": "单模型 dots3-note-prev（笔记/推理向）；Authorization Bearer 与 api-key 头均可。",
+      "defaultModel": "dots3-note-prev",
+      "models": [
+        {
+          "id": "dots3-note-prev",
+          "name": "dots3-note-prev",
+          "contextWindow": 65536
+        }
+      ],
+      "freeModels": [
+        "dots3-note-prev"
+      ]
     }
   ]
 }

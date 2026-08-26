@@ -69,7 +69,7 @@
             const c = e.custom
             if (!c || typeof c !== 'object' || Array.isArray(c)) return 'custom 需为对象'
             for (const ck of Object.keys(c)) {
-              if (['baseUrl', 'keyRef', 'noAuth', 'name', 'note', 'signupUrl', 'defaultModel', 'models', 'proxy', 'freeModels'].indexOf(ck) < 0) return '不允许的字段: custom.' + ck
+              if (['baseUrl', 'keyRef', 'noAuth', 'name', 'note', 'signupUrl', 'defaultModel', 'models', 'proxy', 'freeModels', 'chatPath', 'requestExtra'].indexOf(ck) < 0) return '不允许的字段: custom.' + ck
             }
             if (c.baseUrl !== undefined && (typeof c.baseUrl !== 'string' || !/^https?:\/\//.test(c.baseUrl) || c.baseUrl.length > 2048)) return 'custom.baseUrl 无效（需 http(s):// 开头）'
             if (c.keyRef !== undefined && (typeof c.keyRef !== 'string' || !/^[A-Z0-9_]{1,64}$/.test(c.keyRef))) return 'custom.keyRef 无效（需大写字母/数字/下划线）'

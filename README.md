@@ -71,6 +71,9 @@ roles, arrow-key navigation, visited panels stay mounted):
   priority / signup tutorial / key save / connectivity test / health & stats),
   a one-click integration wizard, remote-catalog configuration, and a
   custom-upstream form (works with local uni-api / new-api / LiteLLM gateways).
+  Non-standard gateways are supported in the config file via `custom.chatPath`
+  (override `/chat/completions`) and `custom.requestExtra` (extra scalar body
+  fields; `model: null` omits the model field — e.g. GMI's `/autoroute`).
 
 There is no sibling freeroute item in the settings nav (a standalone section
 appears only if the host ships no wrappable models entry). The `/freeproxy`
