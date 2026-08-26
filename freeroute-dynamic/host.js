@@ -1,4 +1,4 @@
-const VERSION = '0.7.1'
+const VERSION = '0.7.2'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
 const UA = 'deepseek-harness/0.1.0-rc.6 (+https://github.com/deepseek-ai/deepseek-harness)'
@@ -1163,11 +1163,8 @@ return {
       return candidatesSync(pool, model)
     }
 
-    async function* failoverStream(options) {
-      const cands = await candidatesFor(options.model)
-      if (cands.length === 0) {
-        throw mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
-      }
+    // 沿候选链逐个尝试：出字前失败换下一家，出字后失败直接上抛。
+    async function* chaseChain(cands, options) {
       let lastErr = null
       for (let i = 0; i < cands.length; i++) {
         const cand = cands[i]
@@ -1204,6 +1201,43 @@ return {
         }
       }
       throw lastErr || mkFail('全部候选上游均失败', 'NO_UPSTREAM')
+    }
+
+    async function* failoverStream(options) {
+      const isAuto = options.model === 'auto'
+      const cands = await candidatesFor(options.model)
+      if (cands.length === 0 && isAuto) {
+        throw mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
+      }
+      let primaryErr = null
+      if (cands.length > 0) {
+        let yielded = false
+        try {
+          for await (const ck of chaseChain(cands, options)) { yielded = true; yield ck }
+          return
+        } catch (e) {
+          if (options.signal && options.signal.aborted) throw e
+          // 已产出内容的中途失败不能降级（会重复输出），原样上抛
+          if (yielded) throw e
+          primaryErr = e
+          // 请求本身的问题（取消/不支持的内容）换哪家上游也没用
+          const code = String((e && e.code) || '')
+          if (code === 'ABORTED' || code === 'UNSUPPORTED_CONTENT') throw e
+          if (isAuto) throw e
+        }
+      }
+      // 单模型兜底：候选全挂（提供同一模型的多家厂商同时故障并不少见）、
+      // 或该模型的提供方全部在冷却而无候选时，降级到 auto 链继续跑。
+      // 用户选单个模型表达的是「偏好」，不是「宁可失败也不用别家」。
+      const tried = new Set()
+      for (const c of cands) tried.add(c.upstream.id + '|' + c.model)
+      const fb = (await candidatesFor('auto')).filter(function (c) { return !tried.has(c.upstream.id + '|' + c.model) })
+      if (fb.length === 0) {
+        // 原始错误比笼统的 NO_UPSTREAM 更有诊断价值
+        throw primaryErr || mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
+      }
+      if (!isAuto) console.log('[freeroute] 模型 ' + options.model + (cands.length === 0 ? ' 无可用候选（冷却中）' : ' 的全部候选失败') + '，降级 auto 兜底（' + fb.length + ' 个候选）')
+      for await (const ck of chaseChain(fb, options)) yield ck
     }
 
     const adapter = {
@@ -1267,13 +1301,15 @@ return {
       let text = ''
       let usage = null
       let finish = null
+      const toolCalls = []
       async function run() {
         for await (const ck of gen) {
           if (ck.type === 'text-delta') text += ck.text
           if (ck.type === 'usage') usage = ck.usage
           if (ck.type === 'finish') finish = ck.reason
+          if (ck.type === 'block-end' && ck.block && ck.block.type === 'tool-call') toolCalls.push(ck.block)
         }
-        return { text: text, usage: usage, finish: finish }
+        return { text: text, usage: usage, finish: finish, toolCalls: toolCalls }
       }
       return run()
     }
@@ -1955,6 +1991,22 @@ return {
       })
     }
 
+    // 本地 OpenAI 兼容端点：供其他 agent / 客户端复用免费额度。按设计无需
+    // 任何 API Key（聚合的是本机已配置的免费上游），并放通 CORS（浏览器端
+    // 应用也能直连）。
+    const CORS_HEADERS = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+      'access-control-allow-headers': 'authorization, content-type',
+      'access-control-max-age': '86400'
+    }
+
+    function sendJson(res, status, obj) {
+      const h = Object.assign({ 'content-type': 'application/json' }, CORS_HEADERS)
+      res.writeHead(status, h)
+      res.end(typeof obj === 'string' ? obj : JSON.stringify(obj))
+    }
+
     function strContent(c) {
       if (typeof c === 'string') return c
       if (Array.isArray(c)) {
@@ -1986,18 +2038,27 @@ return {
       return out
     }
 
+    function wireFinishReason(kind) {
+      if (kind === 'tool-calls') return 'tool_calls'
+      if (kind === 'max-tokens') return 'length'
+      return 'stop'
+    }
+
     function routeHandler(req, res) {
       Promise.resolve().then(async function () {
         const path = String(req.url || '/').split('?')[0]
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204, CORS_HEADERS)
+          res.end()
+          return
+        }
         if (path === '/freeroute/health') {
-          res.writeHead(200, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ ok: true, route: ROUTE, version: VERSION, time: new Date().toISOString() }))
+          sendJson(res, 200, { ok: true, route: ROUTE, version: VERSION, time: new Date().toISOString() })
           return
         }
         if (path === '/freeroute/v1/models') {
           const st = await buildState()
-          res.writeHead(200, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ object: 'list', data: st.models.map(function (m) { return { id: m.id, object: 'model', owned_by: m.upstream } }) }))
+          sendJson(res, 200, { object: 'list', data: st.models.map(function (m) { return { id: m.id, object: 'model', owned_by: m.upstream } }) })
           return
         }
         if (path === '/freeroute/v1/chat/completions') {
@@ -2007,8 +2068,7 @@ return {
           raw += dec.decode()
           let body
           try { body = JSON.parse(raw) } catch (e) {
-            res.writeHead(400, { 'content-type': 'application/json' })
-            res.end(JSON.stringify({ error: { message: 'invalid JSON body' } }))
+            sendJson(res, 400, { error: { message: 'invalid JSON body' } })
             return
           }
           const opts = {
@@ -2016,15 +2076,30 @@ return {
             model: (typeof body.model === 'string' && body.model.length > 0) ? body.model : 'auto',
             messages: inboundToInternal(body.messages),
             maxTokens: typeof body.max_tokens === 'number' ? body.max_tokens : undefined,
-            temperature: typeof body.temperature === 'number' ? body.temperature : undefined
+            temperature: typeof body.temperature === 'number' ? body.temperature : undefined,
+            stop: body.stop
+          }
+          if (Array.isArray(body.tools) && body.tools.length > 0) {
+            opts.tools = []
+            for (const t of body.tools) {
+              if (t && t.type === 'function' && t.function) {
+                opts.tools.push({ name: String(t.function.name || ''), description: t.function.description || '', parameters: t.function.parameters || { type: 'object', properties: {} } })
+              }
+            }
+            if (opts.tools.length === 0) delete opts.tools
           }
           if (body.stream) {
-            res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+            res.writeHead(200, Object.assign({ 'content-type': 'text/event-stream', 'cache-control': 'no-cache' }, CORS_HEADERS))
             try {
               for await (const ck of failoverStream(opts)) {
                 if (ck.type === 'text-delta') res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: ck.text } }] }) + '\n\n')
                 else if (ck.type === 'reasoning-delta') res.write('data: ' + JSON.stringify({ choices: [{ delta: { reasoning_content: ck.text } }] }) + '\n\n')
+                else if (ck.type === 'tool-call-delta') {
+                  const tc = { index: ck.index, id: ck.id, type: 'function', function: { name: ck.name || '', arguments: ck.argumentsDelta || '' } }
+                  res.write('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [tc] } }] }) + '\n\n')
+                }
                 else if (ck.type === 'usage') res.write('data: ' + JSON.stringify({ choices: [], usage: { prompt_tokens: ck.usage.inputTokens, completion_tokens: ck.usage.outputTokens } }) + '\n\n')
+                else if (ck.type === 'finish') res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: wireFinishReason(ck.reason && ck.reason.kind) }] }) + '\n\n')
               }
               res.write('data: [DONE]\n\n')
               res.end()
@@ -2039,27 +2114,29 @@ return {
           const startedAt = Date.now()
           try {
             const r = await collectFrom(failoverStream(opts))
-            res.writeHead(200, { 'content-type': 'application/json' })
-            res.end(JSON.stringify({
+            const message = { role: 'assistant', content: r.text }
+            if (r.toolCalls && r.toolCalls.length > 0) {
+              message.tool_calls = r.toolCalls.map(function (b, i) {
+                return { id: b.id || ('call_' + i), type: 'function', function: { name: b.name || '', arguments: b.arguments || '{}' } }
+              })
+            }
+            sendJson(res, 200, {
               id: 'freeroute-' + startedAt,
               object: 'chat.completion',
               created: Math.floor(startedAt / 1000),
               model: opts.model,
-              choices: [{ index: 0, message: { role: 'assistant', content: r.text }, finish_reason: 'stop' }],
+              choices: [{ index: 0, message: message, finish_reason: wireFinishReason(r.finish && r.finish.kind) }],
               usage: { prompt_tokens: (r.usage && r.usage.inputTokens) || 0, completion_tokens: (r.usage && r.usage.outputTokens) || 0 }
-            }))
+            })
           } catch (e) {
-            res.writeHead(502, { 'content-type': 'application/json' })
-            res.end(JSON.stringify({ error: { message: emsg(e), code: String(e && e.code) } }))
+            sendJson(res, 502, { error: { message: emsg(e), code: String(e && e.code) } })
           }
           return
         }
-        res.writeHead(404, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ error: { message: 'unknown freeroute path' } }))
+        sendJson(res, 404, { error: { message: 'unknown freeroute path' } })
       }).catch(function (e) {
         try {
-          res.writeHead(500, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ error: { message: emsg(e) } }))
+          sendJson(res, 500, { error: { message: emsg(e) } })
         } catch (e2) { }
       })
     }

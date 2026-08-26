@@ -257,6 +257,22 @@ const ua = st2.upstreams.find((u) => u.id === 'mock-a')
 assert.equal(ua.health.state, 'cooling', '失败上游进入冷却')
 assert.equal(ua.stats.failed >= 1, true, '失败计数')
 
+console.log('■ 4b. 单模型降级（无候选/全挂时走 auto 兜底）')
+// a) 模型的唯一上游在冷却：v0.7.2 前直接 NO_UPSTREAM 中断整轮，现降级 auto 继续跑
+const r1b = await collect(adapter.stream({ provider: 'freeroute', model: 'ma', messages: msg('hi') }))
+assert.equal(r1b.text, 'Mock reply OK', '唯一上游冷却时单模型降级 auto 成功')
+// b) 模型的候选全部失败：同样降级
+const pc = await remote.applyPatch({ patch: { upstreams: { 'mock-c': { enabled: true, custom: { baseUrl: b(portFail), noAuth: true, models: [{ id: 'mc', name: 'MC', contextWindow: 32768 }], defaultModel: 'mc' } } }, order: ['mock-c', 'mock-a', 'mock-b'] } })
+assert.equal(pc.ok, true, '补一个必挂上游 mock-c')
+const r1c = await collect(adapter.stream({ provider: 'freeroute', model: 'mc', messages: msg('hi') }))
+assert.equal(r1c.text, 'Mock reply OK', '候选全挂时单模型降级 auto 成功')
+// c) 请求本身的问题（图片内容）换哪家也没用：不降级、原样报错
+let imgErr = null
+try {
+  await collect(adapter.stream({ provider: 'freeroute', model: 'mc', messages: [{ id: 'm2', role: 'user', content: [{ type: 'image', url: 'x' }], source: { kind: 'user' } }] }))
+} catch (e) { imgErr = e }
+assert.equal(String(imgErr && imgErr.code), 'UNSUPPORTED_CONTENT', '不支持的内容不触发降级')
+
 console.log('■ 5. 删除上游')
 const rm = await remote.removeUpstream({ id: 'mock-b' })
 assert.equal(rm.ok, true, '删除已配置上游成功')

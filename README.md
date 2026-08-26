@@ -45,14 +45,19 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    rate limit 60 s, others exponential backoff capped at 10 min). `auto`
    picks the highest-priority enabled, keyed, non-cooling upstream; failures
    before any output switch to the next candidate (empty responses included),
-   failures after output surface to the caller. Keys rotate individually on
+   failures after output surface to the caller. A **pinned single model**
+   degrades to the `auto` chain when all of its providers fail (or sit in
+   cooldown) instead of aborting the turn — picking one model is a
+   preference, not exclusivity. Keys rotate individually on
    AUTH / rate-limit, and a per-key failure is surfaced in the panel.
 4. **Three-layer config** — builtin catalog → remote catalog (JSON hosted on
    Cloudflare Pages/R2 for ship-free updates; native format or models.dev
    `api.json`, zero-cost models auto-filtered) → user patch persisted under
    the `free-proxy` settings namespace.
-5. **Local endpoint** — `/freeroute/v1/chat/completions` +
-   `/freeroute/v1/models` let any OpenAI client ride the same free pool.
+5. **Local endpoint** — `http://127.0.0.1:<port>/freeroute/v1` is an
+   OpenAI-compatible base URL (chat/completions with streaming, tools and
+   usage; models; health). No API key required, CORS enabled — any other
+   agent or client (CLI or browser) can ride the same free pool.
 
 ## Settings panel
 

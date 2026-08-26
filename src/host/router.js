@@ -156,11 +156,8 @@
       return candidatesSync(pool, model)
     }
 
-    async function* failoverStream(options) {
-      const cands = await candidatesFor(options.model)
-      if (cands.length === 0) {
-        throw mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
-      }
+    // 沿候选链逐个尝试：出字前失败换下一家，出字后失败直接上抛。
+    async function* chaseChain(cands, options) {
       let lastErr = null
       for (let i = 0; i < cands.length; i++) {
         const cand = cands[i]
@@ -197,6 +194,43 @@
         }
       }
       throw lastErr || mkFail('全部候选上游均失败', 'NO_UPSTREAM')
+    }
+
+    async function* failoverStream(options) {
+      const isAuto = options.model === 'auto'
+      const cands = await candidatesFor(options.model)
+      if (cands.length === 0 && isAuto) {
+        throw mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
+      }
+      let primaryErr = null
+      if (cands.length > 0) {
+        let yielded = false
+        try {
+          for await (const ck of chaseChain(cands, options)) { yielded = true; yield ck }
+          return
+        } catch (e) {
+          if (options.signal && options.signal.aborted) throw e
+          // 已产出内容的中途失败不能降级（会重复输出），原样上抛
+          if (yielded) throw e
+          primaryErr = e
+          // 请求本身的问题（取消/不支持的内容）换哪家上游也没用
+          const code = String((e && e.code) || '')
+          if (code === 'ABORTED' || code === 'UNSUPPORTED_CONTENT') throw e
+          if (isAuto) throw e
+        }
+      }
+      // 单模型兜底：候选全挂（提供同一模型的多家厂商同时故障并不少见）、
+      // 或该模型的提供方全部在冷却而无候选时，降级到 auto 链继续跑。
+      // 用户选单个模型表达的是「偏好」，不是「宁可失败也不用别家」。
+      const tried = new Set()
+      for (const c of cands) tried.add(c.upstream.id + '|' + c.model)
+      const fb = (await candidatesFor('auto')).filter(function (c) { return !tried.has(c.upstream.id + '|' + c.model) })
+      if (fb.length === 0) {
+        // 原始错误比笼统的 NO_UPSTREAM 更有诊断价值
+        throw primaryErr || mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
+      }
+      if (!isAuto) console.log('[freeroute] 模型 ' + options.model + (cands.length === 0 ? ' 无可用候选（冷却中）' : ' 的全部候选失败') + '，降级 auto 兜底（' + fb.length + ' 个候选）')
+      for await (const ck of chaseChain(fb, options)) yield ck
     }
 
     const adapter = {
@@ -260,13 +294,15 @@
       let text = ''
       let usage = null
       let finish = null
+      const toolCalls = []
       async function run() {
         for await (const ck of gen) {
           if (ck.type === 'text-delta') text += ck.text
           if (ck.type === 'usage') usage = ck.usage
           if (ck.type === 'finish') finish = ck.reason
+          if (ck.type === 'block-end' && ck.block && ck.block.type === 'tool-call') toolCalls.push(ck.block)
         }
-        return { text: text, usage: usage, finish: finish }
+        return { text: text, usage: usage, finish: finish, toolCalls: toolCalls }
       }
       return run()
     }
