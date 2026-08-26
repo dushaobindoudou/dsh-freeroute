@@ -56,6 +56,7 @@
       React.createElement('span', { className: 'frp-pmeta' }, tr('remoteCatalog')),
       React.createElement('span', { className: 'frp-chev' + (advOpen ? ' frp-chev-open' : '') }, '›'))))
   if (advOpen) {
+    self.push(pxCard)
     self.push(catCard)
   }
   // ---- 高级设置：远程目录 / 自定义上游（低频配置，折叠收纳）----

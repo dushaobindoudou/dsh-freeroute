@@ -156,6 +156,14 @@ const STRINGS = {
     unknown: '未知',
     advancedTitle: '高级设置',
     remoteCatalog: '远程目录 JSON',
+    proxyTitle: '全局代理（默认关闭）',
+    proxyPlaceholder: 'http://127.0.0.1:7890',
+    proxySave: '保存代理',
+    proxyClear: '清除',
+    proxyOn: '已启用',
+    proxyOff: '未启用（直连）',
+    proxyHint1: '· 所有未单独配置代理的上游共用此代理（对话请求与模型探测）',
+    proxyHint2: '· 上游自定义 / 目录声明的 proxy 优先于全局；远程目录同步始终直连',
     catTitle: '远程目录（JSON）',
     configFile: '配置文件：',
     settingsFallback: 'settings.yaml（JSON 文件不可用时兜底）',
@@ -237,6 +245,14 @@ const STRINGS = {
     unknown: 'unknown',
     advancedTitle: 'Advanced',
     remoteCatalog: 'Remote catalog JSON',
+    proxyTitle: 'Global proxy (off by default)',
+    proxyPlaceholder: 'http://127.0.0.1:7890',
+    proxySave: 'Save proxy',
+    proxyClear: 'Clear',
+    proxyOn: 'Enabled',
+    proxyOff: 'Disabled (direct)',
+    proxyHint1: '· Applies to every upstream without its own proxy (chat + model probing)',
+    proxyHint2: '· Per-upstream / catalog proxy wins over global; catalog sync is always direct',
     catTitle: 'Remote catalog (JSON)',
     configFile: 'Config file: ',
     settingsFallback: 'settings.yaml (fallback when JSON file unavailable)',
@@ -328,6 +344,10 @@ function Section(props) {
   const ca0 = React.useState(null)
   const catUrl = ca0[0]
   const setCatUrl = ca0[1]
+  // 全局代理草稿（与 catUrl 同理：hook 必须在无条件区声明，片段里只引用）
+  const px0 = React.useState(null)
+  const pxDraft = px0[0]
+  const setPxDraft = px0[1]
   const mo0 = React.useState(false)
   const modelsOpen = mo0[0]
   const setModelsOpen = mo0[1]
@@ -668,6 +688,44 @@ function Section(props) {
   }
   self.push(React.createElement('div', { className: 'frp-card frp-plist', key: 'ups' }, rows))
 
+  // 全局代理卡：输入框 + 保存/清除。留空保存 = 清除（回到直连）。
+  // pxDraft/setPxDraft 声明在 panel-state.js 顶部（hook 规则：不可条件执行）。
+  const pxValue = pxDraft === null ? (st.globalProxy || '') : pxDraft
+  const pxKids = []
+  pxKids.push(React.createElement('h3', { className: 'frp-title', key: 't' }, tr('proxyTitle')))
+  pxKids.push(React.createElement('div', { className: 'frp-stats', key: 'st' },
+    (st.globalProxy ? (tr('proxyOn') + ' · ' + st.globalProxy) : tr('proxyOff'))))
+  const pxRow = []
+  pxRow.push(React.createElement('input', {
+    key: 'url',
+    className: 'frp-input frp-input-wide',
+    type: 'text',
+    placeholder: tr('proxyPlaceholder'),
+    value: pxValue,
+    onChange: function (e) { setPxDraft(e.target.value) }
+  }))
+  pxRow.push(React.createElement('button', {
+    key: 'save',
+    className: 'frp-btn frp-btn-primary',
+    disabled: busy === 'px',
+    onClick: function () {
+      act('freeroute.apply-patch', { patch: { proxy: pxValue.trim() } }, 'px', function () { setPxDraft(null) })
+    }
+  }, tr('proxySave')))
+  pxRow.push(React.createElement('button', {
+    key: 'clear',
+    className: 'frp-btn',
+    disabled: busy === 'px' || !st.globalProxy,
+    onClick: function () {
+      setPxDraft('')
+      act('freeroute.apply-patch', { patch: { proxy: '' } }, 'px', function () { setPxDraft(null) })
+    }
+  }, tr('proxyClear')))
+  pxKids.push(React.createElement('div', { className: 'frp-form-row', key: 'row' }, pxRow))
+  pxKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h1' }, tr('proxyHint1')))
+  pxKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h2' }, tr('proxyHint2')))
+  const pxCard = React.createElement('div', { className: 'frp-card' }, pxKids)
+
   const catKids = []
   catKids.push(React.createElement('h3', { className: 'frp-title', key: 't' }, tr('catTitle')))
   catKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'cfg1' },
@@ -791,6 +849,7 @@ function Section(props) {
       React.createElement('span', { className: 'frp-pmeta' }, tr('remoteCatalog')),
       React.createElement('span', { className: 'frp-chev' + (advOpen ? ' frp-chev-open' : '') }, '›'))))
   if (advOpen) {
+    self.push(pxCard)
     self.push(catCard)
   }
   // ---- 高级设置：远程目录 / 自定义上游（低频配置，折叠收纳）----
@@ -1060,7 +1119,6 @@ function freerouteModelsIntegration(slots) {
         try { models.__freerouteWrap = true } catch (e3) { }
         models.component = ModelsSectionWithFreeRoute
         bump()
-        console.log('[freeroute] 已在 设置 → 模型 页内嵌「免费模型」入口（可逆包装内置模型页）')
       }
       return
     }

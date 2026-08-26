@@ -961,6 +961,82 @@ section('16. 本地端点：无 Key + CORS + 工具调用（供其他 agent 复�
   check('清理 mock-rich', rm.ok === true)
 }
 
+section('16b. 全局代理：默认关闭 / 兜底生效 / 上游覆盖 / 清除')
+{
+  // a) 默认无全局代理：请求 argv 不含 --proxy
+  const before = spawnCalls.length
+  await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  const argvA = spawnCalls.slice(before).filter(function (a) { return a.some(function (x) { return String(x).indexOf('/chat/completions') >= 0 }) })[0] || []
+  check('默认（未设置）请求不带 --proxy', argvA.indexOf('--proxy') < 0, JSON.stringify(argvA.slice(-4)))
+  // b) 设置全局代理：无自有代理的上游自动带上
+  const rp = await rpc('freeroute.apply-patch', { patch: { proxy: 'http://127.0.0.1:7899' } })
+  check('apply-patch 接受顶层 proxy', rp.ok === true, JSON.stringify(rp))
+  const stG = await state()
+  check('state 暴露 globalProxy', stG.globalProxy === 'http://127.0.0.1:7899', String(stG.globalProxy))
+  const before2 = spawnCalls.length
+  await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  const argvB = spawnCalls.slice(before2).filter(function (a) { return a.some(function (x) { return String(x).indexOf('/chat/completions') >= 0 }) })[0] || []
+  const piB = argvB.indexOf('--proxy')
+  check('全局代理进入 curl argv 且在 URL 前', piB >= 0 && argvB[piB + 1] === 'http://127.0.0.1:7899', JSON.stringify(argvB.slice(-6)))
+  // c) 上游自有 proxy 优先于全局
+  await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-json': { custom: { proxy: 'http://127.0.0.1:7890' } } } } })
+  const before3 = spawnCalls.length
+  await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  const argvC = spawnCalls.slice(before3).filter(function (a) { return a.some(function (x) { return String(x).indexOf('/chat/completions') >= 0 }) })[0] || []
+  const piC = argvC.indexOf('--proxy')
+  check('上游 custom.proxy 覆盖全局', piC >= 0 && argvC[piC + 1] === 'http://127.0.0.1:7890', JSON.stringify(argvC.slice(-6)))
+  // d) 持久化 + 校验：非法值被拒，空串清除
+  const disk = JSON.parse(readFileSync(CFG, 'utf8'))
+  check('proxy 落盘 JSON 配置', disk.proxy === 'http://127.0.0.1:7899', String(disk.proxy))
+  const bad = await rpc('freeroute.apply-patch', { patch: { proxy: 'socks5://x' } })
+  check('非法协议被拒', bad.ok === false && /proxy 无效/.test(bad.error), JSON.stringify(bad))
+  const clr = await rpc('freeroute.apply-patch', { patch: { proxy: '' } })
+  check('空串清除成功', clr.ok === true, JSON.stringify(clr))
+  check('清除后 state.globalProxy 为空', (await state()).globalProxy === '')
+  // 还原：上游 proxy 清掉，全局保持关闭
+  await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-json': { custom: { proxy: '' } } } } })
+}
+
+section('18. 200+配额通知文本：自动切换 / 不误伤 / 冷却')
+{
+  // aihubmix 实测场景：配额用尽返回 HTTP 200 + 纯文本提示，传输层无从感知。
+  const NOTICE = 'Sorry, to prevent abuse of free resources, accounts that have not been recharged can only try 10 times. You can increase the free quota after recharging; https://console.aihubmix.com/topup'
+  const portQ = await listen('quota200', function (req, res) {
+    sse(res, [
+      j({ choices: [{ delta: { content: NOTICE } }] }),
+      j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+      'data: [DONE]\n\n'
+    ])
+  })
+  // 误伤对照：短语出现在第 250 字符之后（窗口外），必须是完整正常回答
+  const late = 'X'.repeat(250) + ' to prevent abuse of free resources ' + 'Y'.repeat(50)
+  const portL = await listen('quotaLate', function (req, res) {
+    sse(res, [
+      j({ choices: [{ delta: { content: late } }] }),
+      j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 2, completion_tokens: 2 } }),
+      'data: [DONE]\n\n'
+    ])
+  })
+  // q1 声明同款模型排在 mock-json 前：请求 js-free 应先撞 q1 再切 mock-json
+  const p1 = await rpc('freeroute.apply-patch', { patch: { order: ['q1', 'quota-late', 'mock-json'], upstreams: {
+    'q1': { enabled: true, custom: { noAuth: true, baseUrl: b(portQ), models: [{ id: 'js-free', name: 'Q1' }], defaultModel: 'js-free' } },
+    'quota-late': { enabled: true, custom: { noAuth: true, baseUrl: b(portL), models: [{ id: 'late-free', name: 'Late' }], defaultModel: 'late-free' } }
+  } } })
+  check('注册 200+通知与窗口外对照上游', p1.ok === true, JSON.stringify(p1))
+  const r18 = await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  check('通知文本被拦截并切换到 mock-json', r18.text === 'Mock reply OK', JSON.stringify(r18.text))
+  const st18 = await state()
+  const q1s = st18.upstreams.find(function (u) { return u.id === 'q1' })
+  check('q1 计入失败并进入冷却', q1s.stats.requests >= 1 && q1s.stats.ok === 0 && q1s.health.state === 'cooling', JSON.stringify({ r: q1s.stats.requests, ok: q1s.stats.ok, h: q1s.health.state }))
+  // 误伤对照：late-free 的完整回答必须原样到达
+  const r18b = await collect(adapter.stream({ provider: 'freeroute', model: 'late-free', messages: msg('ping') }))
+  check('窗口外短语不误伤（完整回答保留）', r18b.text === late, 'len=' + r18b.text.length)
+  // 清理
+  await rpc('freeroute.apply-patch', { patch: { order: ['mock-json'] } })
+  await rpc('freeroute.remove-upstream', { id: 'q1' })
+  await rpc('freeroute.remove-upstream', { id: 'quota-late' })
+}
+
 for (const d of disposers) { try { d() } catch { /* ignore */ } }
 for (const s of Object.values(servers)) { s.close() }
 

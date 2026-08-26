@@ -25,6 +25,10 @@
   const ca0 = React.useState(null)
   const catUrl = ca0[0]
   const setCatUrl = ca0[1]
+  // 全局代理草稿（与 catUrl 同理：hook 必须在无条件区声明，片段里只引用）
+  const px0 = React.useState(null)
+  const pxDraft = px0[0]
+  const setPxDraft = px0[1]
   const mo0 = React.useState(false)
   const modelsOpen = mo0[0]
   const setModelsOpen = mo0[1]
