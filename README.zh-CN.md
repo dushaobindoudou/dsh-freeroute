@@ -84,12 +84,14 @@ dsh plugin --profile web add dsh-freeroute
   `build:dynamic`。
 - `npm run lint && npm test`：lint + 真实 cordis 根上的冒烟测试。
 - **模块同一性**：`@deepseek-ai/dsh-typert-protocol` 必须与 dsh 宿主解析到
-  同一份物理副本。workspace 自带 pnpm 副本时，Typert Remote marker 类与宿主
-  不同源，`/api/freeroute/*` 全部注册不上（客户端看到 `HTTP 404`）。
-  `postinstall` 会执行 `scripts/link-host-typert.mjs`，把 workspace 的该包
-  软链到全局 dsh 安装内的那份（同 dsh-refine 的做法）。若安装后再次出现
-  `transport failure for /api/freeroute/state: HTTP 404`，运行
-  `node scripts/link-host-typert.mjs` 并重启 `dsh web` 即可。
+  同一份物理副本。宿主网关从它自己那份模块私有的 WeakMap 读取 Remote 方法
+  标记；插件 workspace 自带 pnpm 副本时标记记进了另一份 WeakMap，网关一个
+  方法都扫不到，`/api/freeroute/*` 静默注册不上（客户端看到 `HTTP 404`，
+  服务端无任何报错）。v0.7.3 起 `lib/index.js` 在加载时直接锚定宿主自己的
+  副本（运行中的 dsh CLI 入口 → 全局 npm 布局 → 回退），不再依赖 postinstall、
+  软链或宿主版本。旧版本若出现
+  `transport failure for /api/freeroute/state: HTTP 404`，升级到 ≥0.7.3
+  即永久修复。
 
 ## 诚实的边界
 
