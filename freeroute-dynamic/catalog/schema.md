@@ -16,6 +16,20 @@
 }
 ```
 
+## 自建网关示例（不再收录进默认目录，可复制进你自己的目录 JSON）
+
+```jsonc
+{
+  "id": "example-selfhost",
+  "name": "示例：自建网关（uni-api / new-api / LiteLLM）",
+  "baseUrl": "http://127.0.0.1:8000/v1",
+  "noAuth": true,               // 本机网关免鉴权时声明；有鉴权则用 keyRef
+  "note": "自建 OpenAI 兼容网关示例",
+  "defaultModel": "my-free-model",
+  "models": [{ "id": "my-free-model", "name": "自建免费模型", "contextWindow": 32768 }]
+}
+```
+
 ## upstream 条目字段
 
 | 字段 | 必填 | 说明 |

@@ -67,8 +67,22 @@
           const r = await rawGet(url, 30000)
           if (r.status !== 0 && (r.status < 200 || r.status >= 300)) throw mkFail('目录下载失败 HTTP ' + r.status + (r.errTail ? ' · ' + r.errTail : ''), 'HTTP_' + r.status)
           const parsed = parseCatalog(r.body)
-          remoteUpstreams.clear()
-          for (const e of parsed.entries) remoteUpstreams.set(e.id, e)
+          // 增量合并（按厂商 id 逐家对比）：只更新远端有变更的条目，远端撤下的
+          // 条目从远端层移除。同步永不写 userConfig —— 本地启停/隐藏/自定义
+          // 上游原样保留，不会全量覆盖。
+          const nextIds = new Set()
+          for (const e of parsed.entries) nextIds.add(e.id)
+          let added = 0
+          let changed = 0
+          for (const e of parsed.entries) {
+            const prev = remoteUpstreams.get(e.id)
+            if (prev === undefined) { remoteUpstreams.set(e.id, e); added += 1 }
+            else if (JSON.stringify(prev) !== JSON.stringify(e)) { remoteUpstreams.set(e.id, e); changed += 1 }
+          }
+          let dropped = 0
+          for (const id of Array.from(remoteUpstreams.keys())) {
+            if (!nextIds.has(id)) { remoteUpstreams.delete(id); dropped += 1 }
+          }
           // 目录自带 apikey 列表 -> 整环写入凭据（KEY / KEY_2 …，多余旧编号清掉）
           let imported = 0
           for (const e of parsed.entries) {
@@ -86,9 +100,7 @@
           catalogMeta.lastError = ''
           catalogMeta.lastSyncUrl = url
           catalogMeta.lastUsedFallback = (i > 0)
-          const tail = (i > 0 ? '，已回退备份源' : '') + (imported > 0 ? ('，导入 ' + imported + ' 家 Key 环') : '')
-          console.log('[freeroute] 远程目录已同步: ' + parsed.entries.length + ' 个上游（' + parsed.format + ' 格式' + tail + '）来自 ' + url)
-          return { ok: true, count: parsed.entries.length, format: parsed.format, imported: imported, url: url, usedFallback: i > 0 }
+          return { ok: true, count: parsed.entries.length, format: parsed.format, imported: imported, url: url, usedFallback: i > 0, added: added, changed: changed, dropped: dropped }
         } catch (e) {
           lastErr = emsg(e)
           // 还有备份源可试：记录并继续；否则在此源失败处收尾

@@ -16,6 +16,9 @@ let wrappedOriginalComponent = null
 
 function ModelsSectionWithFreeRoute(props) {
   const tabsId = (typeof React.useId === 'function' ? React.useId() : 'frp-models-tabs')
+  // 页签文案跟随 dsh 语言；语言切换时下方 effect 会重建页签条
+  const lang = useLang()
+  const tr = makeT(lang)
   const scopeRef = React.useRef(null)
   const barRef = React.useRef(null)
   const activeRef = React.useRef('default')
@@ -47,10 +50,10 @@ function ModelsSectionWithFreeRoute(props) {
       bar.setAttribute('data-frp', 'tabbar')
       bar.className = 'frp-tabs'
       bar.setAttribute('role', 'tablist')
-      bar.setAttribute('aria-label', '模型设置页签')
+      bar.setAttribute('aria-label', tr('tablistAria'))
       const defs = [
-        { id: 'default', label: '默认' },
-        { id: 'free', label: '免费' }
+        { id: 'default', label: tr('tabDefault') },
+        { id: 'free', label: tr('tabFree') }
       ]
       const btns = []
       defs.forEach(function (d, index) {
@@ -156,7 +159,7 @@ function ModelsSectionWithFreeRoute(props) {
         }
       }
     }
-  }, [])
+  }, [lang])
 
   React.useEffect(function () {
     activeRef.current = active
@@ -208,7 +211,7 @@ function ModelsSectionWithFreeRoute(props) {
     wrappedOriginalComponent
       ? React.createElement(wrappedOriginalComponent, Object.assign({}, props, { key: 'models-orig' }))
       : React.createElement('div', { className: 'frp-card frp-muted', key: 'models-missing' },
-        '未找到内置模型设置页组件（dsh 版本不兼容？）。请用「免费」页签配置免费模型。')))
+          tr('modelsMissing'))))
   if (visited.free) {
     kids.push(React.createElement('div', {
       key: 'panel-free',

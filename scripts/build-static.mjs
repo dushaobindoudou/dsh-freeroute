@@ -36,6 +36,7 @@ const METHODS = [
   ['clearKey', 'freeroute.clear-key'],
   ['applyPatch', 'freeroute.apply-patch'],
   ['removeUpstream', 'freeroute.remove-upstream'],
+  ['restoreUpstream', 'freeroute.restore-upstream'],
   ['catalogSync', 'freeroute.catalog.sync'],
   ['probe', 'freeroute.probe'],
   ['test', 'freeroute.test'],

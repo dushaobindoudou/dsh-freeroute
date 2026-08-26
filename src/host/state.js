@@ -85,6 +85,22 @@
       }
       let requests = 0, ok = 0, failed = 0, tokensIn = 0, tokensOut = 0
       for (const s of stats.values()) { requests += s.requests; ok += s.ok; failed += s.failed; tokensIn += s.tokensIn; tokensOut += s.tokensOut }
+      // 本地隐藏的上游（removed 标记）：名字从原始来源（内置/远程/自定义）取，
+      // 供面板「已隐藏 N 家 · 恢复」入口使用。
+      const hidden = []
+      {
+        const uc = userConfig.upstreams || {}
+        const nameOf = function (id) {
+          for (const b of BUILTIN_UPSTREAMS) { if (b.id === id) return b.name }
+          const r = remoteUpstreams.get(id)
+          if (r) return r.name || id
+          const c = uc[id] && uc[id].custom
+          return (c && c.name) || id
+        }
+        for (const pair of Object.entries(uc)) {
+          if (pair[1] && pair[1].removed) hidden.push({ id: pair[0], name: nameOf(pair[0]) })
+        }
+      }
       return {
         version: VERSION,
         route: ROUTE,
@@ -106,6 +122,7 @@
         currentSelection: current,
         totals: { requests: requests, ok: ok, failed: failed, tokensIn: tokensIn, tokensOut: tokensOut },
         upstreams: list,
+        hiddenUpstreams: hidden,
         models: models,
         endpoint: webServer !== undefined ? { base: 'http://127.0.0.1:' + webServer.port + '/freeroute/v1' } : null
       }

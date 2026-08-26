@@ -4,6 +4,41 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- 自动接管不再覆盖用户已显式配置的默认模型（此前每次启动都会把
+  `agent-default-model` 持久改写为 `freeroute/auto`，用户手动改回后重启又被清掉）。
+  接管状态（`autoInjected` / `takeoverBackup`）持久化到配置文件，重启后关闭
+  自动接管仍可恢复原默认；用户手动把默认改走即视为撤回授权。
+
+### Changed
+
+- 远程目录同步不再打印 `[freeroute] 远程目录已同步: …` 到 CLI（失败回退仍保留日志）。
+- 远程目录改为按厂商增量合并：只更新远端有变更的条目、移除远端撤下的条目，
+  永不写用户配置 —— 本地启停/自定义上游全量保留，不再整体覆盖。
+- 「删除上游」拆分语义：自定义上游真删除；内置/远程上游改为隐藏标记
+  （`removed`），远程同步不复活，面板底部提供「已隐藏 N 家 · 恢复」入口，
+  新增 `freeroute.restore-upstream` RPC。
+
+### Removed
+
+- 远程默认目录裁剪：移除 Mistral、Google AI Studio、Groq、魔搭 ModelScope、
+  SiliconFlow 硅基流动、智谱 BigModel（`freeroute-catalog.json` 仅保留实测
+  可用的 OpenCode / SenseNova / OpenRouter；自建示例条目移入 schema 文档）。
+
+### Changed（客户端）
+
+- 密钥显示/隐藏重做：隐藏态用 `span` 星号掩码（`**************`）替代只读
+  password 输入框；显示态为两行 textarea；切换按钮改为睁眼/闭眼 SVG 图标
+  （`aria-label` 本地化，点击掩码亦可显示）。
+- 面板与「默认 / 免费」页签文案中英文双语，跟随 dsh 的语言设置即时切换
+  （`locale` 服务 + `useSyncExternalStore`；无服务时回落中文）。
+- 主题令牌修正：`--dsw-alias-state-warn-primary`（原 `warning-primary` 不存在）、
+  开关旋钮 `--dsw-alias-bg-base`，暗黑/浅色模式全面适配（边框/文字/掩码底色
+  均随主题变化，已实测）。
+
 ## [0.7.1] - 2026-08-25
 
 ### Fixed

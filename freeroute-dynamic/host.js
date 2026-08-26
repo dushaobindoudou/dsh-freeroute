@@ -119,6 +119,8 @@ function sanitizeConfig(raw) {
       if (!v || typeof v !== 'object') continue
       const entry = {}
       if (typeof v.enabled === 'boolean') entry.enabled = v.enabled
+      // 本地隐藏标记：内置/远程上游被用户删除时置 true（记住删除，远程同步不复活）
+      if (v.removed === true) entry.removed = true
       if (v.custom && typeof v.custom === 'object') {
         const c = v.custom
         const cu = {}
@@ -473,6 +475,11 @@ return {
         if (!merged.defaultModel && merged.models && merged.models.length > 0) merged.defaultModel = merged.models[0].id
         if (!merged.baseUrl) continue
         map.set(id, merged)
+      }
+      // 本地隐藏（removed 标记）优先于一切来源：同名内置/远程/自定义一并移除，
+      // 远程同步永不写 userConfig，被删除的上游不会被同步复活。
+      for (const pair of Object.entries(uc)) {
+        if (pair[1] && pair[1].removed) map.delete(pair[0])
       }
       return map
     }
@@ -1370,8 +1377,22 @@ return {
           const r = await rawGet(url, 30000)
           if (r.status !== 0 && (r.status < 200 || r.status >= 300)) throw mkFail('目录下载失败 HTTP ' + r.status + (r.errTail ? ' · ' + r.errTail : ''), 'HTTP_' + r.status)
           const parsed = parseCatalog(r.body)
-          remoteUpstreams.clear()
-          for (const e of parsed.entries) remoteUpstreams.set(e.id, e)
+          // 增量合并（按厂商 id 逐家对比）：只更新远端有变更的条目，远端撤下的
+          // 条目从远端层移除。同步永不写 userConfig —— 本地启停/隐藏/自定义
+          // 上游原样保留，不会全量覆盖。
+          const nextIds = new Set()
+          for (const e of parsed.entries) nextIds.add(e.id)
+          let added = 0
+          let changed = 0
+          for (const e of parsed.entries) {
+            const prev = remoteUpstreams.get(e.id)
+            if (prev === undefined) { remoteUpstreams.set(e.id, e); added += 1 }
+            else if (JSON.stringify(prev) !== JSON.stringify(e)) { remoteUpstreams.set(e.id, e); changed += 1 }
+          }
+          let dropped = 0
+          for (const id of Array.from(remoteUpstreams.keys())) {
+            if (!nextIds.has(id)) { remoteUpstreams.delete(id); dropped += 1 }
+          }
           // 目录自带 apikey 列表 -> 整环写入凭据（KEY / KEY_2 …，多余旧编号清掉）
           let imported = 0
           for (const e of parsed.entries) {
@@ -1389,9 +1410,7 @@ return {
           catalogMeta.lastError = ''
           catalogMeta.lastSyncUrl = url
           catalogMeta.lastUsedFallback = (i > 0)
-          const tail = (i > 0 ? '，已回退备份源' : '') + (imported > 0 ? ('，导入 ' + imported + ' 家 Key 环') : '')
-          console.log('[freeroute] 远程目录已同步: ' + parsed.entries.length + ' 个上游（' + parsed.format + ' 格式' + tail + '）来自 ' + url)
-          return { ok: true, count: parsed.entries.length, format: parsed.format, imported: imported, url: url, usedFallback: i > 0 }
+          return { ok: true, count: parsed.entries.length, format: parsed.format, imported: imported, url: url, usedFallback: i > 0, added: added, changed: changed, dropped: dropped }
         } catch (e) {
           lastErr = emsg(e)
           // 还有备份源可试：记录并继续；否则在此源失败处收尾
@@ -1596,6 +1615,22 @@ return {
       }
       let requests = 0, ok = 0, failed = 0, tokensIn = 0, tokensOut = 0
       for (const s of stats.values()) { requests += s.requests; ok += s.ok; failed += s.failed; tokensIn += s.tokensIn; tokensOut += s.tokensOut }
+      // 本地隐藏的上游（removed 标记）：名字从原始来源（内置/远程/自定义）取，
+      // 供面板「已隐藏 N 家 · 恢复」入口使用。
+      const hidden = []
+      {
+        const uc = userConfig.upstreams || {}
+        const nameOf = function (id) {
+          for (const b of BUILTIN_UPSTREAMS) { if (b.id === id) return b.name }
+          const r = remoteUpstreams.get(id)
+          if (r) return r.name || id
+          const c = uc[id] && uc[id].custom
+          return (c && c.name) || id
+        }
+        for (const pair of Object.entries(uc)) {
+          if (pair[1] && pair[1].removed) hidden.push({ id: pair[0], name: nameOf(pair[0]) })
+        }
+      }
       return {
         version: VERSION,
         route: ROUTE,
@@ -1617,6 +1652,7 @@ return {
         currentSelection: current,
         totals: { requests: requests, ok: ok, failed: failed, tokensIn: tokensIn, tokensOut: tokensOut },
         upstreams: list,
+        hiddenUpstreams: hidden,
         models: models,
         endpoint: webServer !== undefined ? { base: 'http://127.0.0.1:' + webServer.port + '/freeroute/v1' } : null
       }
@@ -1772,14 +1808,29 @@ return {
         return { ok: true }
       } catch (e) { return { ok: false, error: emsg(e) } }
     }
+    // 删除上游。自定义上游 = 真删除（配置项整个移除）；
+    // 内置/远程上游 = removed 标记（记住删除：远程同步不复活，可随时恢复）；
+    // 任何来源都不存在的 id 一律报错（包括已删掉的自定义上游二次删除）。
     rpc['freeroute.remove-upstream'] = async function (args) {
       try {
         const id = args && args.id
         if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{1,31}$/.test(id)) return { ok: false, error: 'id 无效' }
+        const cur = (userConfig.upstreams && userConfig.upstreams[id]) || {}
+        const isCustom = !!cur.custom
+        if (!isCustom) {
+          const known = BUILTIN_UPSTREAMS.some(function (b) { return b.id === id }) || remoteUpstreams.has(id)
+          if (!known) return { ok: false, error: '未找到上游: ' + id }
+        }
+        const entry = { removed: true, enabled: cur.enabled }
         if (configFileOk) {
-          if (!userConfig.upstreams || !(id in userConfig.upstreams)) return { ok: false, error: '未找到上游: ' + id }
           const next = JSON.parse(JSON.stringify(userConfig))
-          delete next.upstreams[id]
+          if (isCustom) {
+            if (!(userConfig.upstreams && (id in userConfig.upstreams))) return { ok: false, error: '未找到上游: ' + id }
+            delete next.upstreams[id]
+          } else {
+            if (!next.upstreams) next.upstreams = {}
+            next.upstreams[id] = entry
+          }
           if (Array.isArray(next.order)) next.order = next.order.filter(function (x) { return x !== id })
           userConfig = sanitizeConfig(next)
           writeConfigFile()
@@ -1791,13 +1842,49 @@ return {
         for (const d of s.describe()) { if (d.ns === NS) { desc = d; break } }
         if (!desc || !desc.user || typeof desc.user !== 'object') return { ok: false, error: '没有可删除的用户配置' }
         const user = desc.user
-        if (!user.upstreams || !(id in user.upstreams)) return { ok: false, error: '未找到上游: ' + id }
-        delete user.upstreams[id]
+        if (!user.upstreams) user.upstreams = {}
+        if (isCustom) {
+          if (!(id in user.upstreams)) return { ok: false, error: '未找到上游: ' + id }
+          delete user.upstreams[id]
+        } else {
+          user.upstreams[id] = entry
+        }
         if (Array.isArray(user.order)) {
           const kept = []
           for (const x of user.order) { if (x !== id && typeof x === 'string') kept.push(x) }
           user.order = kept
         }
+        await s.replace(NS, user)
+        return { ok: true }
+      } catch (e) { return { ok: false, error: emsg(e) } }
+    }
+    // 恢复被隐藏的上游（清掉 removed 标记；来源已消失则记录为无效操作）
+    rpc['freeroute.restore-upstream'] = async function (args) {
+      try {
+        const id = args && args.id
+        if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{1,31}$/.test(id)) return { ok: false, error: 'id 无效' }
+        const cur = (userConfig.upstreams && userConfig.upstreams[id]) || null
+        if (!cur || cur.removed !== true) return { ok: false, error: '该上游未被隐藏: ' + id }
+        if (configFileOk) {
+          const next = JSON.parse(JSON.stringify(userConfig))
+          const e2 = next.upstreams[id]
+          if (e2) {
+            delete e2.removed
+            if (Object.keys(e2).length === 0) delete next.upstreams[id]
+          }
+          userConfig = sanitizeConfig(next)
+          writeConfigFile()
+          checkTakeover().catch(function () { })
+          return { ok: true }
+        }
+        const s = requireSettings()
+        let desc = null
+        for (const d of s.describe()) { if (d.ns === NS) { desc = d; break } }
+        if (!desc || !desc.user || typeof desc.user !== 'object') return { ok: false, error: '没有可用的用户配置' }
+        const user = desc.user
+        if (!user.upstreams || !user.upstreams[id]) return { ok: false, error: '该上游未被隐藏: ' + id }
+        delete user.upstreams[id].removed
+        if (Object.keys(user.upstreams[id]).length === 0) delete user.upstreams[id]
         await s.replace(NS, user)
         return { ok: true }
       } catch (e) { return { ok: false, error: emsg(e) } }

@@ -9,6 +9,8 @@ function sanitizeConfig(raw) {
       if (!v || typeof v !== 'object') continue
       const entry = {}
       if (typeof v.enabled === 'boolean') entry.enabled = v.enabled
+      // 本地隐藏标记：内置/远程上游被用户删除时置 true（记住删除，远程同步不复活）
+      if (v.removed === true) entry.removed = true
       if (v.custom && typeof v.custom === 'object') {
         const c = v.custom
         const cu = {}

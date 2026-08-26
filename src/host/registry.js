@@ -122,6 +122,11 @@
         if (!merged.baseUrl) continue
         map.set(id, merged)
       }
+      // 本地隐藏（removed 标记）优先于一切来源：同名内置/远程/自定义一并移除，
+      // 远程同步永不写 userConfig，被删除的上游不会被同步复活。
+      for (const pair of Object.entries(uc)) {
+        if (pair[1] && pair[1].removed) map.delete(pair[0])
+      }
       return map
     }
 

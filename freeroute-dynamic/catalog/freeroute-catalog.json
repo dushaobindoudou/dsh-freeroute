@@ -2,8 +2,8 @@
   "$schema": "https://raw.githubusercontent.com/0xrushmoon/dsh-freeroute/main/freeroute-dynamic/catalog/schema.md",
   "name": "FreeRoute 免费模型目录",
   "version": 1,
-  "updatedAt": "2026-08-21",
-  "description": "FreeRoute dsh 插件的远程上游目录。托管到 Cloudflare Pages/R2/Workers 后，在插件设置里填入该 JSON 的 URL 即可免发版更新免费上游列表。同时兼容 models.dev 的 api.json 格式。",
+  "updatedAt": "2026-08-26",
+  "description": "FreeRoute dsh 插件的远程上游目录。托管到 Cloudflare Pages/R2/Workers 后，在插件设置里填入该 JSON 的 URL 即可免发版更新免费上游列表。同时兼容 models.dev 的 api.json 格式。默认只收录实测可用的免费上游；用户在面板里删除的上游不会被同步复活。",
   "upstreams": [
     {
       "id": "opencode",
@@ -84,147 +84,6 @@
         {
           "id": "qwen/qwen-2.5-72b-instruct:free",
           "name": "Qwen2.5 72B (free)",
-          "contextWindow": 32768
-        }
-      ]
-    },
-    {
-      "id": "groq",
-      "name": "Groq",
-      "baseUrl": "https://api.groq.com/openai/v1",
-      "keyRef": "FREEROUTE_GROQ_API_KEY",
-      "signupUrl": "https://console.groq.com/keys",
-      "note": "免费档高速推理；有每分钟/每日请求上限。",
-      "defaultModel": "llama-3.3-70b-versatile",
-      "models": [
-        {
-          "id": "llama-3.3-70b-versatile",
-          "name": "Llama 3.3 70B Versatile",
-          "contextWindow": 131072
-        },
-        {
-          "id": "llama-3.1-8b-instant",
-          "name": "Llama 3.1 8B Instant",
-          "contextWindow": 131072
-        },
-        {
-          "id": "deepseek-r1-distill-llama-70b",
-          "name": "R1 Distill Llama 70B",
-          "contextWindow": 131072
-        }
-      ]
-    },
-    {
-      "id": "zhipu",
-      "name": "智谱 BigModel",
-      "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
-      "keyRef": "FREEROUTE_ZHIPU_API_KEY",
-      "signupUrl": "https://open.bigmodel.cn/usercenter/apikeys",
-      "note": "GLM-4-Flash 序列免费，国内直连。",
-      "defaultModel": "glm-4-flash",
-      "models": [
-        {
-          "id": "glm-4-flash",
-          "name": "GLM-4-Flash (免费)",
-          "contextWindow": 128000
-        },
-        {
-          "id": "glm-4-flash-250414",
-          "name": "GLM-4-Flash 0414 (免费)",
-          "contextWindow": 128000
-        }
-      ]
-    },
-    {
-      "id": "siliconflow",
-      "name": "SiliconFlow 硅基流动",
-      "baseUrl": "https://api.siliconflow.cn/v1",
-      "keyRef": "FREEROUTE_SILICONFLOW_API_KEY",
-      "signupUrl": "https://cloud.siliconflow.cn/account/ak",
-      "note": "国内直连；部分小参数模型永久免费。",
-      "defaultModel": "Qwen/Qwen2.5-7B-Instruct",
-      "models": [
-        {
-          "id": "Qwen/Qwen2.5-7B-Instruct",
-          "name": "Qwen2.5 7B (免费)",
-          "contextWindow": 32768
-        },
-        {
-          "id": "THUDM/glm-4-9b-chat",
-          "name": "GLM-4 9B (免费)",
-          "contextWindow": 32768
-        }
-      ]
-    },
-    {
-      "id": "modelscope",
-      "name": "魔搭 ModelScope",
-      "baseUrl": "https://api-inference.modelscope.cn/v1",
-      "keyRef": "FREEROUTE_MODELSCOPE_API_KEY",
-      "signupUrl": "https://modelscope.cn/my/myaccesstoken",
-      "note": "免费推理 API，每日 token 额度，国内直连。",
-      "defaultModel": "Qwen/Qwen2.5-7B-Instruct",
-      "models": [
-        {
-          "id": "Qwen/Qwen2.5-7B-Instruct",
-          "name": "Qwen2.5 7B",
-          "contextWindow": 32768
-        },
-        {
-          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-          "name": "R1 Distill Qwen 7B",
-          "contextWindow": 32768
-        }
-      ]
-    },
-    {
-      "id": "gemini",
-      "name": "Google AI Studio",
-      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
-      "keyRef": "FREEROUTE_GEMINI_API_KEY",
-      "signupUrl": "https://aistudio.google.com/apikey",
-      "note": "AI Studio 免费额度；Flash 系列有 RPM/RPD 限额。",
-      "defaultModel": "gemini-2.0-flash",
-      "models": [
-        {
-          "id": "gemini-2.0-flash",
-          "name": "Gemini 2.0 Flash",
-          "contextWindow": 1048576
-        },
-        {
-          "id": "gemini-2.0-flash-lite",
-          "name": "Gemini 2.0 Flash Lite",
-          "contextWindow": 1048576
-        }
-      ]
-    },
-    {
-      "id": "mistral",
-      "name": "Mistral",
-      "baseUrl": "https://api.mistral.ai/v1",
-      "keyRef": "FREEROUTE_MISTRAL_API_KEY",
-      "signupUrl": "https://console.mistral.ai/api-keys",
-      "note": "免费实验档（La Plateforme），速率与月额度较小。",
-      "defaultModel": "mistral-small-latest",
-      "models": [
-        {
-          "id": "mistral-small-latest",
-          "name": "Mistral Small",
-          "contextWindow": 32768
-        }
-      ]
-    },
-    {
-      "id": "example-selfhost",
-      "name": "示例：自建网关（uni-api / new-api / LiteLLM）",
-      "baseUrl": "http://127.0.0.1:8000/v1",
-      "noAuth": true,
-      "note": "演示条目：自建 OpenAI 兼容网关可用 noAuth 声明（本机免鉴权时），或改 keyRef 指向网关密钥。请按需修改或删除。",
-      "defaultModel": "my-free-model",
-      "models": [
-        {
-          "id": "my-free-model",
-          "name": "自建免费模型",
           "contextWindow": 32768
         }
       ]

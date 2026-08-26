@@ -210,7 +210,7 @@ assert.deepEqual(mod.inject, ['llm', 'timer', 'settings', 'credentials', 'subpro
 assert.ok(adapter != null, 'llm 适配器注册到 freeroute')
 assert.ok(remote !== undefined, 'freeroute Remote 服务已注册')
 const exported = remoteMethods(remote).map((m) => m.exportName ?? m.method).sort()
-assert.deepEqual(exported, ['applyPatch', 'catalogSync', 'clearKey', 'getKeys', 'probe', 'removeUpstream', 'setDefault', 'setKey', 'state', 'test'], '10 个 Remote 方法全部带标记')
+assert.deepEqual(exported, ['applyPatch', 'catalogSync', 'clearKey', 'getKeys', 'probe', 'removeUpstream', 'restoreUpstream', 'setDefault', 'setKey', 'state', 'test'], '11 个 Remote 方法全部带标记')
 assert.equal(remote.typertRemote.namespace, 'freeroute', 'RPC 命名空间为 freeroute')
 
 console.log('■ 2. Remote 委托与状态')
@@ -264,6 +264,48 @@ assert.equal((await remote.removeUpstream({ id: 'mock-b' })).ok, false, '重复�
 assert.equal((await remote.removeUpstream({ id: 'no-such' })).ok, false, '删除不存在上游报错')
 const st3 = await remote.state({})
 assert.ok(!st3.upstreams.some((u) => u.id === 'mock-b'), '上游列表不再含 mock-b')
+
+console.log('■ 5b. 内置/远程上游标记删除 + 增量同步不复活 + 恢复')
+// 本地目录服务器：先 2 条（sensenova 内置同名 + cerebras 远程新增），再改内容
+let catalogBody = { upstreams: [
+  { id: 'sensenova', name: 'SenseNova 商汤日日新', baseUrl: 'https://token.sensenova.cn/v1', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
+  { id: 'cerebras', name: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', keyRef: 'FREEROUTE_CEREBRAS_API_KEY' },
+] }
+const catPort = await listen((req, res) => {
+  res.writeHead(200, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(catalogBody))
+})
+await remote.applyPatch({ patch: { catalog: { remoteUrl: 'http://127.0.0.1:' + catPort + '/freeroute.json' } } })
+const s1 = await remote.catalogSync({})
+assert.equal(s1.ok, true, '目录同步成功')
+assert.equal(s1.count, 2, '目录条目数')
+assert.ok((await remote.state({})).upstreams.some((u) => u.id === 'cerebras'), '远程新增上游进入列表')
+// 删除内置 sensenova（标记式：不真删配置）
+const rm2 = await remote.removeUpstream({ id: 'sensenova' })
+assert.equal(rm2.ok, true, '内置上游删除成功（removed 标记）')
+const stB = await remote.state({})
+assert.ok(!stB.upstreams.some((u) => u.id === 'sensenova'), '删除后列表不再显示')
+assert.ok((stB.hiddenUpstreams || []).some((h) => h.id === 'sensenova'), 'hiddenUpstreams 含 sensenova')
+assert.ok(stB.upstreams.some((u) => u.id === 'cerebras'), '其它远程上游不受影响')
+// 改目录内容再同步：sensenova 变更 + cerebras 撤下 —— 已删除的不复活
+catalogBody = { upstreams: [
+  { id: 'sensenova', name: 'SenseNova 改名', baseUrl: 'https://token.sensenova.cn/v2', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
+] }
+const s2 = await remote.catalogSync({})
+assert.equal(s2.ok, true, '第二次同步成功')
+assert.equal(s2.changed, 1, '按厂商增量：恰 1 条变更')
+assert.equal(s2.dropped, 1, '远端撤下 1 条')
+const stC = await remote.state({})
+assert.ok(!stC.upstreams.some((u) => u.id === 'sensenova'), '远程同步不复活已删除上游')
+assert.ok(!stC.upstreams.some((u) => u.id === 'cerebras'), '远端撤下的条目从远端层移除')
+// 恢复：回到列表且拿到增量后的新内容
+const rs = await remote.restoreUpstream({ id: 'sensenova' })
+assert.equal(rs.ok, true, '恢复成功')
+const stD = await remote.state({})
+const sns = stD.upstreams.find((u) => u.id === 'sensenova')
+assert.ok(sns, '恢复后重新可见')
+assert.equal(sns.name, 'SenseNova 改名', '恢复的是增量合并后的最新内容')
+assert.ok(!(stD.hiddenUpstreams || []).some((h) => h.id === 'sensenova'), 'hiddenUpstreams 已清')
 
 console.log('■ 6. 密钥与自动接管')
 const setKey = await remote.setKey({ id: 'sensenova', key: 'sns-test' })

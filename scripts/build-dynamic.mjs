@@ -58,6 +58,7 @@ const HOST_WRAPPER_CLOSE = '  }\n}\n'
 const CLIENT_TOP = [
   'styles.js',
   'context.js',
+  'i18n.js',
 ]
 const CLIENT_PANEL = [
   'panel-state.js',

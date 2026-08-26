@@ -1,0 +1,209 @@
+// ---- i18n：面板文案跟随 dsh 的 locale 服务（zh/en），缺服务时回落 zh ----
+// locale 服务（dsh-client-locale 提供）含 subscribe(fn) 与 snapshot.revision；
+// useSyncExternalStore 订阅 revision，语言切换或字典注册都会触发面板重渲染。
+const STRINGS = {
+  zh: {
+    tabDefault: '默认',
+    tabFree: '免费',
+    tablistAria: '模型设置页签',
+    loading: '正在加载 FreeRoute 免费模型代理状态…',
+    stateBad: '状态数据格式异常（宿主与客户端版本不匹配，请重启 dsh web 后刷新）',
+    loadFail: '加载失败: ',
+    headEndpoint: '端点',
+    headDefault: '默认',
+    notSet: '未设置',
+    endpointNone: '未挂载（webServer 不可用）',
+    statRequests: '请求',
+    statOk: '成功',
+    statFailed: '失败',
+    takenOver: '已接管',
+    takenOverTitle: '本次进程已自动把默认模型切到 {route}/auto',
+    autoTakeover: '自动接管',
+    autoTakeoverTitle: '自动接管：检测到可用的免费上游时，自动把默认模型切到 {route}/auto（申请教程见各供应商详情）',
+    disabled: '已停用',
+    freeModels: '免费',
+    noAuth: '免鉴权',
+    keyX: 'Key ×',
+    keyConfigured: 'Key 已配置',
+    keyNeeded: '待配置 Key',
+    cooling: '冷却',
+    coolingUnit: 's',
+    degraded: '状态不佳',
+    probed: '探测',
+    notProbed: '未探测',
+    moveUp: '上移',
+    moveDown: '下移',
+    enableTitle: '启用 / 停用该上游',
+    hideUpstream: '不显示该上游',
+    hideUpstreamTitle: '从列表隐藏该上游（远程目录同步不会复活，可在下方恢复）',
+    restore: '恢复',
+    hiddenPrefix: '已隐藏',
+    hiddenUnit: ' 家上游',
+    test: '测试连通',
+    testing: '测试中…',
+    probe: '探测模型',
+    probing: '探测中…',
+    save: '保存',
+    phConfigured: '输入新值可覆盖已配置的 Key；多把用换行/逗号分隔',
+    phEmpty: '粘贴 {name} 的 API Key（多把用换行/逗号分隔，自动轮换）',
+    eyeShow: '显示已配置的完整密钥',
+    eyeHide: '隐藏密钥内容',
+    triedModels: '（已试 {n} 个模型）',
+    fail: '失败',
+    keyFailWarn: '⚠ 第 {i} 把 Key 失效({code})，已自动轮换',
+    applyKey: '申请 Key ↗',
+    tutorial: '申请教程 ↗',
+    modelsTitle: '模型',
+    countUnit: ' 个',
+    providersUnit: ' 家平台',
+    detail: '详情',
+    provider: '供应商',
+    modelName: '名称',
+    contextWindow: '上下文',
+    unknown: '未知',
+    advancedTitle: '高级设置',
+    remoteCatalog: '远程目录 JSON',
+    catTitle: '远程目录（JSON）',
+    configFile: '配置文件：',
+    settingsFallback: 'settings.yaml（JSON 文件不可用时兜底）',
+    copyHint: '拷贝该文件即迁移/替换 · 改动约 5 秒自动生效 · 可选 "keys" 字段一次性导入密钥（仅补空位，不覆盖已保存的 Key）',
+    saveSync: '保存并同步',
+    syncOnly: '仅同步',
+    syncFailed: '同步失败',
+    lastSync: '上次同步',
+    notSynced: '尚未同步',
+    providersUnit2: ' 个厂商',
+    formatUnit: ' 格式',
+    errorLabel: ' · 错误: ',
+    catHint1: '目录 JSON 一行一个厂商（字段见下）：',
+    catHint2: '· apikey 可选：多把 Key 同步时整环导入并参与轮换',
+    catHint3: '· freeModels 可选：模型名不带 free 字样时声明免费名单',
+    catHint4: '· proxy 可选：该上游需走代理时填',
+    catHint5: '模型列表无需写死——同步后自动探测；也兼容 models.dev 的 api.json。',
+    catPlaceholder: 'https://<你的域名>/freeroute.json',
+    modelsMissing: '未找到内置模型设置页组件（dsh 版本不兼容？）。请用「免费」页签配置免费模型。'
+  },
+  en: {
+    tabDefault: 'Default',
+    tabFree: 'Free',
+    tablistAria: 'Model settings tabs',
+    loading: 'Loading FreeRoute free-model proxy state…',
+    stateBad: 'Unexpected state shape (host/client version mismatch — restart dsh web and reload)',
+    loadFail: 'Load failed: ',
+    headEndpoint: 'Endpoint',
+    headDefault: 'Default',
+    notSet: 'not set',
+    endpointNone: 'not mounted (webServer unavailable)',
+    statRequests: 'Requests',
+    statOk: 'OK',
+    statFailed: 'Failed',
+    takenOver: 'Taken over',
+    takenOverTitle: 'Default model switched to {route}/auto automatically in this process',
+    autoTakeover: 'Auto takeover',
+    autoTakeoverTitle: 'Auto takeover: switch the default model to {route}/auto once a free upstream is usable (see each provider for key guides)',
+    disabled: 'Disabled',
+    freeModels: 'Free',
+    noAuth: 'No auth',
+    keyX: 'Key ×',
+    keyConfigured: 'Key configured',
+    keyNeeded: 'Key needed',
+    cooling: 'Cooldown',
+    coolingUnit: 's',
+    degraded: 'Degraded',
+    probed: 'Probed',
+    notProbed: 'Not probed',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+    enableTitle: 'Enable / disable this upstream',
+    hideUpstream: 'Hide',
+    hideUpstreamTitle: 'Hide this upstream from the list (remote sync will not resurrect it; restore below)',
+    restore: 'Restore',
+    hiddenPrefix: 'Hidden',
+    hiddenUnit: ' upstreams',
+    test: 'Test',
+    testing: 'Testing…',
+    probe: 'Probe models',
+    probing: 'Probing…',
+    save: 'Save',
+    phConfigured: 'Type to replace the configured keys; separate multiples with newlines/commas',
+    phEmpty: 'Paste your {name} API key (multiples separated by newlines/commas — auto rotation)',
+    eyeShow: 'Show configured keys',
+    eyeHide: 'Hide key contents',
+    triedModels: ' ({n} models tried)',
+    fail: 'failed',
+    keyFailWarn: '⚠ Key #{i} failed ({code}), rotated automatically',
+    applyKey: 'Get key ↗',
+    tutorial: 'Key guide ↗',
+    modelsTitle: 'Models',
+    countUnit: ' entries',
+    providersUnit: ' providers',
+    detail: 'Details',
+    provider: 'Provider',
+    modelName: 'Name',
+    contextWindow: 'Context',
+    unknown: 'unknown',
+    advancedTitle: 'Advanced',
+    remoteCatalog: 'Remote catalog JSON',
+    catTitle: 'Remote catalog (JSON)',
+    configFile: 'Config file: ',
+    settingsFallback: 'settings.yaml (fallback when JSON file unavailable)',
+    copyHint: 'Copy this file to migrate/replace · edits apply in ~5s · optional "keys" field imports secrets once (fills empty slots only)',
+    saveSync: 'Save & sync',
+    syncOnly: 'Sync only',
+    syncFailed: 'Sync failed',
+    lastSync: 'Last sync',
+    notSynced: 'Not synced yet',
+    providersUnit2: ' providers',
+    formatUnit: ' format',
+    errorLabel: ' · error: ',
+    catHint1: 'One provider per line in the catalog JSON (fields below):',
+    catHint2: '· apikey optional: full key ring imported on sync and joins rotation',
+    catHint3: '· freeModels optional: declare the free list when model ids lack a "free" marker',
+    catHint4: '· proxy optional: set when this upstream needs a proxy',
+    catHint5: 'Model lists are probed after sync — also accepts models.dev api.json.',
+    catPlaceholder: 'https://<your-domain>/freeroute.json',
+    modelsMissing: 'Built-in models settings component not found (dsh version incompatible?). Use the "Free" tab to configure free models.'
+  }
+}
+
+const useLang = function () {
+  const locale = (ctxRef && typeof ctxRef.get === 'function') ? ctxRef.get('locale') : null
+  const sub = React.useCallback(function (cb) {
+    if (!locale || typeof locale.subscribe !== 'function') return function () { }
+    return locale.subscribe(cb)
+  }, [locale])
+  const snap = React.useCallback(function () {
+    if (!locale || !locale.snapshot) return 'zh'
+    return locale.snapshot.active === 'en' ? 'en' : 'zh'
+  }, [locale])
+  return React.useSyncExternalStore(sub, snap, function () { return 'zh' })
+}
+
+// tr(key, params)：按当前语言取文案，zh 缺项回落 en，再缺回落 key 本身。
+const makeT = function (lang) {
+  return function (key, params) {
+    let s = (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key
+    if (params) {
+      for (const k of Object.keys(params)) {
+        s = s.split('{' + k + '}').join(String(params[k]))
+      }
+    }
+    return s
+  }
+}
+
+// ---- 眼睛图标（密钥显示/隐藏切换；描边随 currentColor 适配主题） ----
+const EYE_ON_ICON = React.createElement('svg', {
+  viewBox: '0 0 24 24', width: '15', height: '15', fill: 'none',
+  stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round',
+  className: 'frp-eye', 'aria-hidden': 'true'
+},
+  React.createElement('path', { d: 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z' }),
+  React.createElement('circle', { cx: '12', cy: '12', r: '3' }))
+const EYE_OFF_ICON = React.createElement('svg', {
+  viewBox: '0 0 24 24', width: '15', height: '15', fill: 'none',
+  stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round',
+  className: 'frp-eye', 'aria-hidden': 'true'
+},
+  React.createElement('path', { d: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24' }),
+  React.createElement('line', { x1: '1', y1: '1', x2: '23', y2: '23' }))
