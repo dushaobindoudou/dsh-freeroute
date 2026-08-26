@@ -56,6 +56,9 @@ const deepMerge = (t, p) => {
   }
   return t
 }
+// 各命名空间的用户层（settings.yaml 语义）：agent-default-model 的显式
+// 配置落在这里，takeover 的「不打扰既有默认」纪律据此判定
+const docStore = {}
 const fakeSettings = {
   register(ns, schemaFn) {
     return {
@@ -65,6 +68,13 @@ const fakeSettings = {
   },
   async update(ns, patch) { deepMerge(store, structuredClone(patch)); for (const w of watchers) w() },
   async replace(ns, v) { store = structuredClone(v); for (const w of watchers) w() },
+  async mutate(ns, ops) {
+    for (const op of ops) {
+      if (op.op === 'unset') delete docStore[op.path[0]]
+    }
+    for (const w of watchers) w()
+  },
+  section(ns) { return docStore[ns] },
   describe() { return [{ ns: 'free-proxy', user: structuredClone(store) }] },
 }
 
@@ -152,7 +162,11 @@ const saveCalls = []
 let currentSel = { provider: 'deepseek', model: 'deepseek-chat' }
 const fakeDefaultModel = {
   currentSelection: () => currentSel,
-  saveSelection: async (s) => { saveCalls.push(structuredClone(s)); currentSel = s },
+  // 与真实 dsh 一致：saveSelection 写 settings 用户层（docStore 可见）
+  saveSelection: async (s) => {
+    saveCalls.push(structuredClone(s)); currentSel = s
+    docStore['agent-default-model'] = structuredClone(s)
+  },
 }
 
 // ---------------------------------------------------------------- 挂载
@@ -196,7 +210,7 @@ assert.deepEqual(mod.inject, ['llm', 'timer', 'settings', 'credentials', 'subpro
 assert.ok(adapter != null, 'llm 适配器注册到 freeroute')
 assert.ok(remote !== undefined, 'freeroute Remote 服务已注册')
 const exported = remoteMethods(remote).map((m) => m.exportName ?? m.method).sort()
-assert.deepEqual(exported, ['applyPatch', 'catalogSync', 'clearKey', 'getKeys', 'probe', 'removeUpstream', 'setDefault', 'setKey', 'state', 'test'], '10 个 Remote 方法全部带标记')
+assert.deepEqual(exported, ['applyPatch', 'catalogSync', 'clearKey', 'getKeys', 'probe', 'removeUpstream', 'restoreUpstream', 'setDefault', 'setKey', 'state', 'test'], '11 个 Remote 方法全部带标记')
 assert.equal(remote.typertRemote.namespace, 'freeroute', 'RPC 命名空间为 freeroute')
 
 console.log('■ 2. Remote 委托与状态')
@@ -243,6 +257,22 @@ const ua = st2.upstreams.find((u) => u.id === 'mock-a')
 assert.equal(ua.health.state, 'cooling', '失败上游进入冷却')
 assert.equal(ua.stats.failed >= 1, true, '失败计数')
 
+console.log('■ 4b. 单模型降级（无候选/全挂时走 auto 兜底）')
+// a) 模型的唯一上游在冷却：v0.7.2 前直接 NO_UPSTREAM 中断整轮，现降级 auto 继续跑
+const r1b = await collect(adapter.stream({ provider: 'freeroute', model: 'ma', messages: msg('hi') }))
+assert.equal(r1b.text, 'Mock reply OK', '唯一上游冷却时单模型降级 auto 成功')
+// b) 模型的候选全部失败：同样降级
+const pc = await remote.applyPatch({ patch: { upstreams: { 'mock-c': { enabled: true, custom: { baseUrl: b(portFail), noAuth: true, models: [{ id: 'mc', name: 'MC', contextWindow: 32768 }], defaultModel: 'mc' } } }, order: ['mock-c', 'mock-a', 'mock-b'] } })
+assert.equal(pc.ok, true, '补一个必挂上游 mock-c')
+const r1c = await collect(adapter.stream({ provider: 'freeroute', model: 'mc', messages: msg('hi') }))
+assert.equal(r1c.text, 'Mock reply OK', '候选全挂时单模型降级 auto 成功')
+// c) 请求本身的问题（图片内容）换哪家也没用：不降级、原样报错
+let imgErr = null
+try {
+  await collect(adapter.stream({ provider: 'freeroute', model: 'mc', messages: [{ id: 'm2', role: 'user', content: [{ type: 'image', url: 'x' }], source: { kind: 'user' } }] }))
+} catch (e) { imgErr = e }
+assert.equal(String(imgErr && imgErr.code), 'UNSUPPORTED_CONTENT', '不支持的内容不触发降级')
+
 console.log('■ 5. 删除上游')
 const rm = await remote.removeUpstream({ id: 'mock-b' })
 assert.equal(rm.ok, true, '删除已配置上游成功')
@@ -250,6 +280,48 @@ assert.equal((await remote.removeUpstream({ id: 'mock-b' })).ok, false, '重复�
 assert.equal((await remote.removeUpstream({ id: 'no-such' })).ok, false, '删除不存在上游报错')
 const st3 = await remote.state({})
 assert.ok(!st3.upstreams.some((u) => u.id === 'mock-b'), '上游列表不再含 mock-b')
+
+console.log('■ 5b. 内置/远程上游标记删除 + 增量同步不复活 + 恢复')
+// 本地目录服务器：先 2 条（sensenova 内置同名 + cerebras 远程新增），再改内容
+let catalogBody = { upstreams: [
+  { id: 'sensenova', name: 'SenseNova 商汤日日新', baseUrl: 'https://token.sensenova.cn/v1', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
+  { id: 'cerebras', name: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', keyRef: 'FREEROUTE_CEREBRAS_API_KEY' },
+] }
+const catPort = await listen((req, res) => {
+  res.writeHead(200, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(catalogBody))
+})
+await remote.applyPatch({ patch: { catalog: { remoteUrl: 'http://127.0.0.1:' + catPort + '/freeroute.json' } } })
+const s1 = await remote.catalogSync({})
+assert.equal(s1.ok, true, '目录同步成功')
+assert.equal(s1.count, 2, '目录条目数')
+assert.ok((await remote.state({})).upstreams.some((u) => u.id === 'cerebras'), '远程新增上游进入列表')
+// 删除内置 sensenova（标记式：不真删配置）
+const rm2 = await remote.removeUpstream({ id: 'sensenova' })
+assert.equal(rm2.ok, true, '内置上游删除成功（removed 标记）')
+const stB = await remote.state({})
+assert.ok(!stB.upstreams.some((u) => u.id === 'sensenova'), '删除后列表不再显示')
+assert.ok((stB.hiddenUpstreams || []).some((h) => h.id === 'sensenova'), 'hiddenUpstreams 含 sensenova')
+assert.ok(stB.upstreams.some((u) => u.id === 'cerebras'), '其它远程上游不受影响')
+// 改目录内容再同步：sensenova 变更 + cerebras 撤下 —— 已删除的不复活
+catalogBody = { upstreams: [
+  { id: 'sensenova', name: 'SenseNova 改名', baseUrl: 'https://token.sensenova.cn/v2', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
+] }
+const s2 = await remote.catalogSync({})
+assert.equal(s2.ok, true, '第二次同步成功')
+assert.equal(s2.changed, 1, '按厂商增量：恰 1 条变更')
+assert.equal(s2.dropped, 1, '远端撤下 1 条')
+const stC = await remote.state({})
+assert.ok(!stC.upstreams.some((u) => u.id === 'sensenova'), '远程同步不复活已删除上游')
+assert.ok(!stC.upstreams.some((u) => u.id === 'cerebras'), '远端撤下的条目从远端层移除')
+// 恢复：回到列表且拿到增量后的新内容
+const rs = await remote.restoreUpstream({ id: 'sensenova' })
+assert.equal(rs.ok, true, '恢复成功')
+const stD = await remote.state({})
+const sns = stD.upstreams.find((u) => u.id === 'sensenova')
+assert.ok(sns, '恢复后重新可见')
+assert.equal(sns.name, 'SenseNova 改名', '恢复的是增量合并后的最新内容')
+assert.ok(!(stD.hiddenUpstreams || []).some((h) => h.id === 'sensenova'), 'hiddenUpstreams 已清')
 
 console.log('■ 6. 密钥与自动接管')
 const setKey = await remote.setKey({ id: 'sensenova', key: 'sns-test' })
@@ -261,6 +333,45 @@ assert.equal(saveCalls.length >= 1, true, '就绪后已接管默认模型')
 assert.deepEqual(saveCalls[0], { provider: 'freeroute', model: 'auto' }, '接管目标 freeroute/auto')
 await new Promise((r) => setTimeout(r, 9500))
 assert.equal(saveCalls.length, 1, '接管只发生一次（takeoverDone 门控）')
+
+console.log('■ 6b. 接管纪律（显式默认不被覆盖 / 持久化标记 / 可恢复）')
+const nSaves = saveCalls.length
+// a) 用户显式配置了默认模型：非显式巡检绝不覆盖（v0.7.2 修复的根因）
+currentSel = { provider: 'vol', model: 'glm-5-3' }
+docStore['agent-default-model'] = { provider: 'vol', model: 'glm-5-3' }
+await remote.applyPatch({ patch: { order: [] } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'vol', '显式默认不被自动接管覆盖')
+assert.equal(saveCalls.length, nSaves, '未产生新的接管写入')
+// 上一步若清了接管标记，配置文件里不应再残留 autoInjected
+const cfgA = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
+assert.ok(!cfgA.autoInjected, '用户改走后接管标记被清除（不再重复接管）')
+
+// b) 显式打开「自动接管」开关 = 明确授权：可覆盖显式默认，原值持久备份
+await remote.applyPatch({ patch: { autoTakeover: true } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'freeroute', '显式开启开关授权接管')
+const cfgB = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
+assert.equal(cfgB.autoInjected, true, '接管标记持久化到配置文件')
+assert.deepEqual(cfgB.takeoverBackup, { provider: 'vol', model: 'glm-5-3' }, '原默认持久备份')
+
+// c) 用户手动把默认改走：巡检尊重选择，不重复接管
+currentSel = { provider: 'vol', model: 'glm-5-3' }
+docStore['agent-default-model'] = { provider: 'vol', model: 'glm-5-3' }
+await remote.applyPatch({ patch: { order: [] } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'vol', '手动改走后不再重复接管')
+
+// d) 关闭自动接管：恢复接管前的用户原默认，清除标记
+await remote.applyPatch({ patch: { autoTakeover: false } })
+await new Promise((r) => setTimeout(r, 50))
+assert.deepEqual(currentSel, { provider: 'vol', model: 'glm-5-3' }, '关闭开关恢复原默认')
+const cfgD = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
+assert.ok(!cfgD.autoInjected && !cfgD.takeoverBackup, '标记与备份清除')
+// 重新显式开启，保持后续断言环境一致
+await remote.applyPatch({ patch: { autoTakeover: true } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'freeroute', '显式开启再次接管')
 
 // ■ 9. 静态构建产物契约：客户端必须解包 typert {ok,value} 信封；
 // 宿主必须声明核心服务依赖（否则先于服务启动时快照 undefined）。

@@ -1,6 +1,9 @@
   const st0 = React.useState(null)
   const stateVal = st0[0]
   const setState = st0[1]
+  // 面板文案语言：跟随 dsh 的 locale 服务（zh/en），切换即时重渲染
+  const lang = useLang()
+  const tr = makeT(lang)
   const er0 = React.useState('')
   const error = er0[0]
   const setError = er0[1]
@@ -69,8 +72,8 @@
   const stBad = !stateVal || typeof stateVal !== 'object' || !stateVal.totals || !Array.isArray(stateVal.upstreams)
   if (stBad) {
     const hint = error
-      ? ('加载失败: ' + error)
-      : (stateVal ? '状态数据格式异常（宿主与客户端版本不匹配，请重启 dsh web 后刷新）' : '正在加载 FreeRoute 免费模型代理状态…')
+      ? (tr('loadFail') + error)
+      : (stateVal ? tr('stateBad') : tr('loading'))
     return React.createElement('div', { className: 'frp' },
       React.createElement('div', { className: 'frp-card frp-muted' }, hint))
   }

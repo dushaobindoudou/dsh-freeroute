@@ -24,6 +24,8 @@
         const tmp = configPath + '.tmp'
         const payload = { order: userConfig.order || [], upstreams: userConfig.upstreams || {} }
         if (userConfig.autoTakeover !== undefined) payload.autoTakeover = userConfig.autoTakeover
+        if (userConfig.autoInjected !== undefined) payload.autoInjected = userConfig.autoInjected
+        if (userConfig.takeoverBackup !== undefined) payload.takeoverBackup = userConfig.takeoverBackup
         if (userConfig.catalog !== undefined) payload.catalog = userConfig.catalog
         fsx.writeFileSync(tmp, JSON.stringify(payload, null, 2) + '\n', 'utf8')
         fsx.renameSync(tmp, configPath)
@@ -107,6 +109,8 @@
         const merged = Object.assign({}, base)
         merged.source = 'custom'
         if (cu.baseUrl) merged.baseUrl = cu.baseUrl
+        if (cu.chatPath) merged.chatPath = cu.chatPath
+        if (cu.requestExtra) merged.requestExtra = cu.requestExtra
         if (cu.keyRef) merged.keyRef = cu.keyRef
         if (cu.noAuth) merged.noAuth = true
         if (cu.proxy) merged.proxy = String(cu.proxy)
@@ -119,6 +123,11 @@
         if (!merged.defaultModel && merged.models && merged.models.length > 0) merged.defaultModel = merged.models[0].id
         if (!merged.baseUrl) continue
         map.set(id, merged)
+      }
+      // 本地隐藏（removed 标记）优先于一切来源：同名内置/远程/自定义一并移除，
+      // 远程同步永不写 userConfig，被删除的上游不会被同步复活。
+      for (const pair of Object.entries(uc)) {
+        if (pair[1] && pair[1].removed) map.delete(pair[0])
       }
       return map
     }

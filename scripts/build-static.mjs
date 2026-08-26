@@ -36,6 +36,7 @@ const METHODS = [
   ['clearKey', 'freeroute.clear-key'],
   ['applyPatch', 'freeroute.apply-patch'],
   ['removeUpstream', 'freeroute.remove-upstream'],
+  ['restoreUpstream', 'freeroute.restore-upstream'],
   ['catalogSync', 'freeroute.catalog.sync'],
   ['probe', 'freeroute.probe'],
   ['test', 'freeroute.test'],
@@ -62,9 +63,47 @@ const out = `/**
  * Assembled from src/ (scripts/build-dynamic.mjs) into the dynamic-plugin
  * body (freeroute-dynamic/), integration-tested (137 assertions) - edit
  * src/, never the generated files. */
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { pathToFileURL } from 'node:url'
+
+// --- typert 模块实例自愈（v0.7.3 关键修复）---
+// dsh 宿主按模块实例识别 TypertRemoteService（标记类挂在类原型上）：本包经
+// pnpm 安装时会解析到 workspace 自带的 typert 副本，与宿主全局实例不同源，
+// 类不等价 → /api/freeroute/* 全部静默 404。修复 postinstall 被 pnpm v10
+// 默认拦截后仍能工作的唯一可靠途径：加载时锚定宿主自己的副本（运行中的
+// dsh CLI 入口 → 全局 npm 布局），全部失败才回退普通解析。
+async function resolveTypert() {
+  const candidates = []
+  try {
+    const { createRequire } = await import('node:module')
+    const { realpathSync } = await import('node:fs')
+    const { dirname, join } = await import('node:path')
+    const anchors = []
+    for (const a of [process.argv && process.argv[1], process.argv && process.argv[0]]) {
+      if (typeof a !== 'string' || a.length === 0) continue
+      anchors.push(a)
+      try { anchors.push(realpathSync(a)) } catch (e) {}
+    }
+    for (const a of anchors) {
+      candidates.push(function () { return import(pathToFileURL(createRequire(a).resolve('@deepseek-ai/dsh-typert-protocol')).href) })
+    }
+    // npm -g 布局：<node-prefix>/lib/node_modules/@deepseek-ai/dsh/node_modules/...
+    if (process.execPath) {
+      const cand = join(dirname(dirname(process.execPath)), 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-typert-protocol', 'lib', 'index.js')
+      candidates.push(function () { return import(pathToFileURL(cand).href) })
+    }
+  } catch (e) { /* 锚定失败走回退 */ }
+  candidates.push(function () { return import('@deepseek-ai/dsh-typert-protocol') })
+  for (const load of candidates) {
+    try {
+      const m = await load()
+      if (m && m.TypertRemoteService && m.Remote) return m
+    } catch (e) { /* 试下一个锚点 */ }
+  }
+  throw new Error('[dsh-freeroute] 无法解析 @deepseek-ai/dsh-typert-protocol（宿主锚定与回退均失败）')
+}
+const { Remote, TypertRemoteService } = await resolveTypert()
 
 /**
  * Apply one \`@Remote(method)\` marker without decorator syntax: the shim

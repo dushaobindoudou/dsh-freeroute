@@ -45,14 +45,19 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    rate limit 60 s, others exponential backoff capped at 10 min). `auto`
    picks the highest-priority enabled, keyed, non-cooling upstream; failures
    before any output switch to the next candidate (empty responses included),
-   failures after output surface to the caller. Keys rotate individually on
+   failures after output surface to the caller. A **pinned single model**
+   degrades to the `auto` chain when all of its providers fail (or sit in
+   cooldown) instead of aborting the turn — picking one model is a
+   preference, not exclusivity. Keys rotate individually on
    AUTH / rate-limit, and a per-key failure is surfaced in the panel.
 4. **Three-layer config** — builtin catalog → remote catalog (JSON hosted on
    Cloudflare Pages/R2 for ship-free updates; native format or models.dev
    `api.json`, zero-cost models auto-filtered) → user patch persisted under
    the `free-proxy` settings namespace.
-5. **Local endpoint** — `/freeroute/v1/chat/completions` +
-   `/freeroute/v1/models` let any OpenAI client ride the same free pool.
+5. **Local endpoint** — `http://127.0.0.1:<port>/freeroute/v1` is an
+   OpenAI-compatible base URL (chat/completions with streaming, tools and
+   usage; models; health). No API key required, CORS enabled — any other
+   agent or client (CLI or browser) can ride the same free pool.
 
 ## Settings panel
 
@@ -66,6 +71,9 @@ roles, arrow-key navigation, visited panels stay mounted):
   priority / signup tutorial / key save / connectivity test / health & stats),
   a one-click integration wizard, remote-catalog configuration, and a
   custom-upstream form (works with local uni-api / new-api / LiteLLM gateways).
+  Non-standard gateways are supported in the config file via `custom.chatPath`
+  (override `/chat/completions`) and `custom.requestExtra` (extra scalar body
+  fields; `model: null` omits the model field — e.g. GMI's `/autoroute`).
 
 There is no sibling freeroute item in the settings nav (a standalone section
 appears only if the host ships no wrappable models entry). The `/freeproxy`
@@ -100,13 +108,15 @@ Layered sources (see `src/README.md`):
   carrier) — never hand-edit just one side; `npm run build:static` runs both.
 - `npm run lint && npm test` — lint plus a smoke test on a real cordis root.
 - **Module-instance rule**: `@deepseek-ai/dsh-typert-protocol` must resolve to
-  the SAME physical copy the dsh host uses. A private pnpm copy makes the
-  Typert Remote marker class differ from the host's, so `/api/freeroute/*`
-  never registers (client sees `HTTP 404`). `postinstall` runs
-  `scripts/link-host-typert.mjs`, which symlinks the workspace package onto
-  the global dsh install's copy (same fix as dsh-refine). If you ever see
-  `transport failure for /api/freeroute/state: HTTP 404` after an install,
-  run `node scripts/link-host-typert.mjs` and restart `dsh web`.
+  the SAME physical copy the dsh host uses. The host gateway reads Remote
+  method markers from a WeakMap private to ITS copy of the module; a private
+  pnpm copy in the plugin workspace registers into a different WeakMap, so
+  `/api/freeroute/*` silently registers zero routes (client sees `HTTP 404`,
+  no error anywhere). Since v0.7.3 `lib/index.js` resolves the host's own copy
+  at load time (running dsh CLI entry → global npm layout → fallback), so no
+  postinstall, symlink, or host version is required. If you ever see
+  `transport failure for /api/freeroute/state: HTTP 404` on an older version,
+  upgrading to ≥0.7.3 fixes it permanently.
 
 ## Honest limits
 

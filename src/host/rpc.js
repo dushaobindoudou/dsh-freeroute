@@ -69,7 +69,7 @@
             const c = e.custom
             if (!c || typeof c !== 'object' || Array.isArray(c)) return 'custom 需为对象'
             for (const ck of Object.keys(c)) {
-              if (['baseUrl', 'keyRef', 'noAuth', 'name', 'note', 'signupUrl', 'defaultModel', 'models', 'proxy', 'freeModels'].indexOf(ck) < 0) return '不允许的字段: custom.' + ck
+              if (['baseUrl', 'keyRef', 'noAuth', 'name', 'note', 'signupUrl', 'defaultModel', 'models', 'proxy', 'freeModels', 'chatPath', 'requestExtra'].indexOf(ck) < 0) return '不允许的字段: custom.' + ck
             }
             if (c.baseUrl !== undefined && (typeof c.baseUrl !== 'string' || !/^https?:\/\//.test(c.baseUrl) || c.baseUrl.length > 2048)) return 'custom.baseUrl 无效（需 http(s):// 开头）'
             if (c.keyRef !== undefined && (typeof c.keyRef !== 'string' || !/^[A-Z0-9_]{1,64}$/.test(c.keyRef))) return 'custom.keyRef 无效（需大写字母/数字/下划线）'
@@ -118,17 +118,24 @@
           await requireSettings().update(NS, p)
         }
         if (p && p.autoTakeover === false) {
-          // 关闭自动接管：若本次进程接过管，恢复用户原先的默认模型选择
+          // 关闭自动接管：撤销本次接管，恢复用户原默认模型选择。
+          // 当前默认仍是本路由（接管在生效）才动它：用户已手动改走时
+          // 只清标记，不再覆盖用户的最新选择。
           try {
-            if (takeoverDone) {
-              takeoverDone = false
-              const defaultModelSvc = ctx.get('agentDefaultModel')
-              if (defaultModelSvc !== undefined && takeoverPrev) await defaultModelSvc.saveSelection(takeoverPrev)
-              takeoverPrev = null
+            const defaultModelSvc = ctx.get('agentDefaultModel')
+            const sel = defaultModelSvc ? defaultModelSvc.currentSelection() : null
+            if (sel && sel.provider === ROUTE) {
+              const backup = (userConfig.takeoverBackup && typeof userConfig.takeoverBackup.provider === 'string') ? userConfig.takeoverBackup : takeoverPrev
+              if (defaultModelSvc !== undefined && backup) await defaultModelSvc.saveSelection(backup)
+              else await unsetInjectedDefault()
             }
+            takeoverDone = false
+            takeoverPrev = null
+            persistTakeoverState(false, null)
           } catch (e) { }
         } else if (p && p.autoTakeover === true) {
-          checkTakeover().catch(function () { })
+          // 显式打开开关 = 明确授权接管（可覆盖已有默认，原值已备份）
+          checkTakeover(true).catch(function () { })
         } else if (configFileOk) {
           // settings 模式由 scope.watch 联动；JSON 模式显式触发
           checkTakeover().catch(function () { })
@@ -136,14 +143,29 @@
         return { ok: true }
       } catch (e) { return { ok: false, error: emsg(e) } }
     }
+    // 删除上游。自定义上游 = 真删除（配置项整个移除）；
+    // 内置/远程上游 = removed 标记（记住删除：远程同步不复活，可随时恢复）；
+    // 任何来源都不存在的 id 一律报错（包括已删掉的自定义上游二次删除）。
     rpc['freeroute.remove-upstream'] = async function (args) {
       try {
         const id = args && args.id
         if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{1,31}$/.test(id)) return { ok: false, error: 'id 无效' }
+        const cur = (userConfig.upstreams && userConfig.upstreams[id]) || {}
+        const isCustom = !!cur.custom
+        if (!isCustom) {
+          const known = BUILTIN_UPSTREAMS.some(function (b) { return b.id === id }) || remoteUpstreams.has(id)
+          if (!known) return { ok: false, error: '未找到上游: ' + id }
+        }
+        const entry = { removed: true, enabled: cur.enabled }
         if (configFileOk) {
-          if (!userConfig.upstreams || !(id in userConfig.upstreams)) return { ok: false, error: '未找到上游: ' + id }
           const next = JSON.parse(JSON.stringify(userConfig))
-          delete next.upstreams[id]
+          if (isCustom) {
+            if (!(userConfig.upstreams && (id in userConfig.upstreams))) return { ok: false, error: '未找到上游: ' + id }
+            delete next.upstreams[id]
+          } else {
+            if (!next.upstreams) next.upstreams = {}
+            next.upstreams[id] = entry
+          }
           if (Array.isArray(next.order)) next.order = next.order.filter(function (x) { return x !== id })
           userConfig = sanitizeConfig(next)
           writeConfigFile()
@@ -155,13 +177,49 @@
         for (const d of s.describe()) { if (d.ns === NS) { desc = d; break } }
         if (!desc || !desc.user || typeof desc.user !== 'object') return { ok: false, error: '没有可删除的用户配置' }
         const user = desc.user
-        if (!user.upstreams || !(id in user.upstreams)) return { ok: false, error: '未找到上游: ' + id }
-        delete user.upstreams[id]
+        if (!user.upstreams) user.upstreams = {}
+        if (isCustom) {
+          if (!(id in user.upstreams)) return { ok: false, error: '未找到上游: ' + id }
+          delete user.upstreams[id]
+        } else {
+          user.upstreams[id] = entry
+        }
         if (Array.isArray(user.order)) {
           const kept = []
           for (const x of user.order) { if (x !== id && typeof x === 'string') kept.push(x) }
           user.order = kept
         }
+        await s.replace(NS, user)
+        return { ok: true }
+      } catch (e) { return { ok: false, error: emsg(e) } }
+    }
+    // 恢复被隐藏的上游（清掉 removed 标记；来源已消失则记录为无效操作）
+    rpc['freeroute.restore-upstream'] = async function (args) {
+      try {
+        const id = args && args.id
+        if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{1,31}$/.test(id)) return { ok: false, error: 'id 无效' }
+        const cur = (userConfig.upstreams && userConfig.upstreams[id]) || null
+        if (!cur || cur.removed !== true) return { ok: false, error: '该上游未被隐藏: ' + id }
+        if (configFileOk) {
+          const next = JSON.parse(JSON.stringify(userConfig))
+          const e2 = next.upstreams[id]
+          if (e2) {
+            delete e2.removed
+            if (Object.keys(e2).length === 0) delete next.upstreams[id]
+          }
+          userConfig = sanitizeConfig(next)
+          writeConfigFile()
+          checkTakeover().catch(function () { })
+          return { ok: true }
+        }
+        const s = requireSettings()
+        let desc = null
+        for (const d of s.describe()) { if (d.ns === NS) { desc = d; break } }
+        if (!desc || !desc.user || typeof desc.user !== 'object') return { ok: false, error: '没有可用的用户配置' }
+        const user = desc.user
+        if (!user.upstreams || !user.upstreams[id]) return { ok: false, error: '该上游未被隐藏: ' + id }
+        delete user.upstreams[id].removed
+        if (Object.keys(user.upstreams[id]).length === 0) delete user.upstreams[id]
         await s.replace(NS, user)
         return { ok: true }
       } catch (e) { return { ok: false, error: emsg(e) } }

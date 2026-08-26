@@ -76,7 +76,7 @@
       const msg = String((e && (e.message || e.type)) || '上游错误')
       const blob = (msg + ' ' + String((e && e.code) || '') + ' ' + String((e && e.type) || '')).toLowerCase()
       let code = 'SERVER'
-      if (/rate|429|quota|配额/.test(blob)) code = 'RATE_LIMIT'
+      if (/rate|429|quota|配额|credit/i.test(blob)) code = 'RATE_LIMIT'
       else if (/auth|401|403|api key|apikey|unauthorized/.test(blob)) code = 'AUTH'
       else if (/context|token limit|too long/.test(blob)) code = 'CONTEXT_WINDOW_EXCEEDED'
       return mkFail(msg, code)
@@ -193,7 +193,7 @@
         // 让 AUTH / RATE_LIMIT / SERVER 熔断能正确触发。
         if (!sawSse) {
           if (httpStatus === 401 || httpStatus === 403) throw mkFail('上游鉴权失败 (HTTP ' + httpStatus + ')' + (plainTail() ? '：' + plainTail() : '') + (httpStatus === 403 ? '（403 常见原因：Key 有效但账户未开通该模型 / 未完成实名，或免费额度不覆盖此模型）' : ''), 'AUTH')
-          if (httpStatus === 429) throw mkFail('上游限流 (HTTP 429)' + (plainTail() ? '：' + plainTail() : ''), 'RATE_LIMIT')
+          if (httpStatus === 429 || httpStatus === 402) throw mkFail('上游限流/额度 (HTTP ' + httpStatus + ')' + (plainTail() ? '：' + plainTail() : ''), 'RATE_LIMIT')
           if (httpStatus >= 400) throw mkFail('上游错误 (HTTP ' + httpStatus + ')' + (plainTail() ? '：' + plainTail() : ''), 'SERVER')
           const t = plain.trim()
           if (t.length > 0) {
