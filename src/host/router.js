@@ -28,7 +28,7 @@
             coolKey(ordered[i].ref, e)
             const kidx = keyNumber(ordered[i].ref)
             noteKeyFail(upstream.id, kidx, code)
-            console.log('[freeroute] 上游 ' + upstream.id + ' 的第 ' + kidx + ' 把 Key 失败(' + code + ')，轮换下一把')
+            log('[freeroute] 上游 ' + upstream.id + ' 的第 ' + kidx + ' 把 Key 失败(' + code + ')，轮换下一把')
             continue
           }
           recordFailure(upstream.id, e, hooks && hooks.suppressCooldown === true)
@@ -233,7 +233,7 @@
             recordFailure(cand.upstream.id, emptyFinish, sameUpNext)
             lastErr = emptyFinish
             const nxt0 = cands[i + 1]
-            if (nxt0) console.log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 空响应(' + String(emptyFinish.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt0.model : nxt0.upstream.id))
+            if (nxt0) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 空响应(' + String(emptyFinish.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt0.model : nxt0.upstream.id))
             continue
           }
           return
@@ -242,7 +242,7 @@
           if (options.signal && options.signal.aborted) throw e
           if (produced) throw e
           const nxt = cands[i + 1]
-          if (nxt) console.log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 失败(' + String(e && e.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt.model : nxt.upstream.id))
+          if (nxt) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 失败(' + String(e && e.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt.model : nxt.upstream.id))
           if (String((e && e.code) || '') === 'SERVER') scheduleReprobe(cand.upstream.id)
         }
       }
@@ -282,13 +282,22 @@
         // 原始错误比笼统的 NO_UPSTREAM 更有诊断价值
         throw primaryErr || mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
       }
-      if (!isAuto) console.log('[freeroute] 模型 ' + options.model + (cands.length === 0 ? ' 无可用候选（冷却中）' : ' 的全部候选失败') + '，降级 auto 兜底（' + fb.length + ' 个候选）')
+      if (!isAuto) log('[freeroute] 模型 ' + options.model + (cands.length === 0 ? ' 无可用候选（冷却中）' : ' 的全部候选失败') + '，降级 auto 兜底（' + fb.length + ' 个候选）')
       for await (const ck of chaseChain(fb, options)) yield ck
     }
 
     const adapter = {
       providerInfo: function (provider) { return { id: provider, name: 'FreeRoute 免费模型' } },
-      providerRetryPolicy: function () { return undefined },
+      // 按 dsh 插件文档（@deepseek-ai/dsh-llm-retry）设置 per-provider 重试策略。
+      // 适配器在 registerAdapter() 时通过 providerRetryPolicy(provider) 捕获一次，
+      // 省略则退回 dsh-llm-retry 的 normal 默认（5 次、500ms→10s）。
+      // always mode：无次数上限地重试每个模型请求失败，直到成功/取消/插件 dispose。
+      providerRetryPolicy: function () {
+        return {
+          mode: 'always',
+          backoff: { initialDelayMs: 1000, maxDelayMs: 30000, jitterRatio: 0.2 }
+        }
+      },
       listModels: async function () {
         // 只展示「免费且可用」：auto -> 免费模型（通用名，跨上游合并去重）。
         // 未配 Key 上游的模型不展示（选了也用不了）；付费模型不进选择器，

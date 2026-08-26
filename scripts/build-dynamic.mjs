@@ -35,6 +35,7 @@ const HOST_HEAD = [
 ]
 const HOST_BODY = [
   'context.js',
+  'logger.js',
   'registry.js',
   'keys.js',
   'probe.js',

@@ -105,7 +105,7 @@
           lastErr = emsg(e)
           // 还有备份源可试：记录并继续；否则在此源失败处收尾
           if (i < candidates.length - 1) {
-            console.log('[freeroute] 主源 ' + url + ' 同步失败（' + lastErr + '），尝试备份源…')
+            log('[freeroute] 主源 ' + url + ' 同步失败（' + lastErr + '），尝试备份源…')
             continue
           }
           catalogMeta.lastError = lastErr

@@ -95,6 +95,6 @@
         takeoverDone = true
         takeoverPrev = prev
         persistTakeoverState(true, prev)
-        console.log('[freeroute] 检测到免费上游就绪，已把默认模型切到 ' + ROUTE + '/auto' + (prev ? '（原默认 ' + prev.provider + '/' + prev.model + ' 已备份，关闭自动接管可恢复）' : '（未发现显式默认模型配置）'))
+        log('[freeroute] 检测到免费上游就绪，已把默认模型切到 ' + ROUTE + '/auto' + (prev ? '（原默认 ' + prev.provider + '/' + prev.model + ' 已备份，关闭自动接管可恢复）' : '（未发现显式默认模型配置）'))
       } catch (e) { }
     }

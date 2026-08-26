@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.2]
+
+### Added
+
+- 按 dsh 插件文档（`@deepseek-ai/dsh-llm-retry`）为 freeroute 适配器配置 per-provider
+  重试策略：`providerRetryPolicy` 现返回 `mode: 'always'` + 嵌套 `backoff`
+  （`initialDelayMs: 1000 / maxDelayMs: 30000 / jitterRatio: 0.2`），在
+  `llm.registerAdapter()` 时一次性捕获。此前省略该方法会退回 dsh-llm-retry 的
+  `normal` 默认（5 次上限），现在单个模型请求失败不再受次数限制，
+  由故障转移链（换 Key → 换上游 → auto 兜底）承担恢复职责。
+
+### Changed
+
+- 轮换/故障转移/启动日志不再打印到控制台，改写 `$DSH_HOME/.dsh/freeroute/freeroute.log`
+  （ISO 时间戳行，追加写）。日志文件按 5 MB 大小或 7 天时效滚动（重命名为
+  `.1`），宿主无 `fs`/`os` 注入时静默降级为 no-op。`src/host/` 与
+  `src/client/` 下已无任何 `console.log`（仅 `scripts/`、`test/` 的构建与测试工具保留）。
+
 ## [Unreleased]
 
 ### Fixed
