@@ -1037,6 +1037,31 @@ section('18. 200+配额通知文本：自动切换 / 不误伤 / 冷却')
   await rpc('freeroute.remove-upstream', { id: 'quota-late' })
 }
 
+section('19. resolveModel 上下文窗口 + 流超时参数（根因 A/C 回归）')
+{
+  const portBig = await listen('cwBig', mkOk())
+  const portSmall = await listen('cwSmall', mkOk())
+  // cw-big 高优先级且默认模型 131072；cw-small 备用且默认模型 32768
+  const p = await rpc('freeroute.apply-patch', { patch: { order: ['cw-big', 'cw-small'], upstreams: {
+    'cw-big': { enabled: true, custom: { noAuth: true, baseUrl: b(portBig), models: [{ id: 'big-free', name: 'Big', contextWindow: 131072 }], defaultModel: 'big-free', freeModels: ['big-free'] } },
+    'cw-small': { enabled: true, custom: { noAuth: true, baseUrl: b(portSmall), models: [{ id: 'small-free', name: 'Small', contextWindow: 32768 }], defaultModel: 'small-free', freeModels: ['small-free'] } }
+  } } })
+  check('注册窗口对照上游', p.ok === true, JSON.stringify(p))
+  const auto = await adapter.resolveModel('freeroute', 'auto')
+  check('auto 上报首选候选窗口 131072（不再写死 32768）', auto.context && auto.context.contextWindow === 131072, JSON.stringify(auto.context))
+  const pinned = await adapter.resolveModel('freeroute', 'cw-big/big-free')
+  check('固定模型(big-free)上报其真实窗口 131072', pinned.context && pinned.context.contextWindow === 131072, JSON.stringify(pinned.context))
+  const unknown = await adapter.resolveModel('freeroute', 'definitely-no-such-model')
+  check('未知模型仍回退 32768（保守兜底）', unknown.context && unknown.context.contextWindow === 32768, JSON.stringify(unknown.context))
+  // 流超时参数必须进入 curl argv（根因 C：防上游挂起 ~16 分钟）
+  const lastSpawn = spawnCalls[spawnCalls.length - 1] || []
+  check('curl argv 含 --max-time 与 --speed-time', lastSpawn.includes('--max-time') && lastSpawn.includes('--speed-time'), JSON.stringify(lastSpawn))
+  // 清理现场
+  await rpc('freeroute.remove-upstream', { id: 'cw-big' })
+  await rpc('freeroute.remove-upstream', { id: 'cw-small' })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
 for (const d of disposers) { try { d() } catch { /* ignore */ } }
 for (const s of Object.values(servers)) { s.close() }
 
