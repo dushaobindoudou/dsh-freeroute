@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-freeroute.svg?style=flat-square)](https://www.npmjs.com/package/dsh-freeroute)
 [![License](https://img.shields.io/npm/l/dsh-freeroute.svg?style=flat-square)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/dushaobindoudou/dsh-freeroute/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/dushaobindoudou/dsh-freeroute/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/0xrushmoon/dsh-freeroute/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/0xrushmoon/dsh-freeroute/actions/workflows/ci.yml)
 
 Free-tier model aggregation for the
 [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/dsh) (dsh):
@@ -45,14 +45,19 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    rate limit 60 s, others exponential backoff capped at 10 min). `auto`
    picks the highest-priority enabled, keyed, non-cooling upstream; failures
    before any output switch to the next candidate (empty responses included),
-   failures after output surface to the caller. Keys rotate individually on
+   failures after output surface to the caller. A **pinned single model**
+   degrades to the `auto` chain when all of its providers fail (or sit in
+   cooldown) instead of aborting the turn — picking one model is a
+   preference, not exclusivity. Keys rotate individually on
    AUTH / rate-limit, and a per-key failure is surfaced in the panel.
 4. **Three-layer config** — builtin catalog → remote catalog (JSON hosted on
    Cloudflare Pages/R2 for ship-free updates; native format or models.dev
    `api.json`, zero-cost models auto-filtered) → user patch persisted under
    the `free-proxy` settings namespace.
-5. **Local endpoint** — `/freeroute/v1/chat/completions` +
-   `/freeroute/v1/models` let any OpenAI client ride the same free pool.
+5. **Local endpoint** — `http://127.0.0.1:<port>/freeroute/v1` is an
+   OpenAI-compatible base URL (chat/completions with streaming, tools and
+   usage; models; health). No API key required, CORS enabled — any other
+   agent or client (CLI or browser) can ride the same free pool.
 
 ## Settings panel
 
@@ -66,6 +71,9 @@ roles, arrow-key navigation, visited panels stay mounted):
   priority / signup tutorial / key save / connectivity test / health & stats),
   a one-click integration wizard, remote-catalog configuration, and a
   custom-upstream form (works with local uni-api / new-api / LiteLLM gateways).
+  Non-standard gateways are supported in the config file via `custom.chatPath`
+  (override `/chat/completions`) and `custom.requestExtra` (extra scalar body
+  fields; `model: null` omits the model field — e.g. GMI's `/autoroute`).
 
 There is no sibling freeroute item in the settings nav (a standalone section
 appears only if the host ships no wrappable models entry). The `/freeproxy`
@@ -83,12 +91,21 @@ are optional and degrade gracefully when absent.
 
 ## Development
 
-- `freeroute-dynamic/` holds the same logic as dynamic-plugin sources
-  (host.js / client.js) with a 137-assertion integration suite:
+Layered sources (see `src/README.md`):
+
+- `src/` is the single hand-edited authority, split into `src/host/` (20
+  fragments: constants → catalog parse → context/state → keys/probe/models/
+  health → transport/router/http → takeover/rpc/commands/endpoint/boot) and
+  `src/client/` (10 fragments: styles/context → panel state/header/upstreams/
+  advanced/models → models page/integration/plugin tail).
+- `npm run build:dynamic` assembles `src/**` into `freeroute-dynamic/
+  {host,client}.js` (single-function-body form for the dynamic plugin loader,
+  with the version injected from package.json).
+- `freeroute-dynamic/` carries a 137-assertion integration suite:
   `node freeroute-dynamic/test/integration.mjs`.
-- `npm run build:static` mechanically generates `lib/` from those sources
-  (the dynamic RPC layer is swapped for a Typert Remote + Connection carrier)
-  — never hand-edit just one side.
+- `npm run build:static` mechanically generates `lib/` from those assembled
+  sources (the dynamic RPC layer is swapped for a Typert Remote + Connection
+  carrier) — never hand-edit just one side; `npm run build:static` runs both.
 - `npm run lint && npm test` — lint plus a smoke test on a real cordis root.
 - **Module-instance rule**: `@deepseek-ai/dsh-typert-protocol` must resolve to
   the SAME physical copy the dsh host uses. A private pnpm copy makes the

@@ -24,6 +24,7 @@ const CFG = __os.tmpdir() + '/freeroute-test-' + process.pid + '.json'
 try { __fs.unlinkSync(CFG) } catch { /* 不存在即跳过 */ }
 process.env.FREEROUTE_CONFIG = CFG
 
+const pkg = JSON.parse(readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8'))
 const body = readFileSync(path.join(here, '..', 'host.js'), 'utf8')
 if (body.includes('`')) throw new Error('host.js 含反引号，无法用 Function 包装（请改用引号字符串）')
 
@@ -221,7 +222,8 @@ const fakeLlm = {
   registerAdapter: (routes, adapter) => { adapters.set(routes[0], adapter); return () => adapters.delete(routes[0]) }
 }
 
-const fakeWebServer = { port: 0, register: () => () => {} }
+const webRegs = []
+const fakeWebServer = { port: 0, register: (spec) => { webRegs.push(spec); return () => {} } }
 const fakeCommands = { register: () => () => {} }
 let currentSel = { provider: 'deepseek', model: 'deepseek-chat' }
 const saveCalls = []
@@ -272,7 +274,7 @@ check('llm 适配器注册到 freeroute 路由', adapter != null)
 check('RPC 处理器已注册（state 等）', handlers.has('freeroute.state') && handlers.has('freeroute.apply-patch') && handlers.has('freeroute.set-key'))
 {
   const st = await state()
-  check('版本号 v0.5.0', st.version === '0.5.0', st.version)
+  check('版本号 v' + pkg.version + '（package.json 注入）', st.version === pkg.version, st.version)
   check('内置上游 4 个（opencode/b-ai/openrouter/sensenova）', st.upstreams.length === 4, String(st.upstreams.length))
   check('每家内置上游带申请教程', st.upstreams.every((u) => Array.isArray(u.tutorial) && u.tutorial.length >= 3))
   check('模型列表含 auto', st.models.some((m) => m.id === 'auto'))
@@ -377,6 +379,40 @@ section('3c. 请求体内容透传（块数组与裸字符串两种形态）')
   check('清理 mock-body', rm3c.ok === true)
 }
 
+section('3d. 非标网关：chatPath + requestExtra（model 可省略）')
+{
+  // 模拟 GMI autoroute 一类网关：路径非 /chat/completions，请求体要求
+  // mode 字段且不传 model。
+  const seen = []
+  const portAR = await listen('autoroute', (req, res) => {
+    if (req.url !== '/ie/recommendation/autoroute') { res.writeHead(404); res.end('{}'); return }
+    let body = ''
+    req.on('data', function (c) { body += c })
+    req.on('end', function () {
+      seen.push(body)
+      try {
+        const o = JSON.parse(body)
+        if (o.mode !== 'balanced' || o.model !== undefined) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { message: 'expect mode=balanced and no model' } })); return }
+      } catch (e) { res.writeHead(400); res.end('{}'); return }
+      mkOk()(req, res)
+    })
+  })
+  const reg = await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-ar': { enabled: true, custom: { noAuth: true, baseUrl: 'http://127.0.0.1:' + portAR + '/ie/recommendation', chatPath: '/autoroute', requestExtra: { mode: 'balanced', model: null }, models: [{ id: 'ar-route', name: 'AR' }], defaultModel: 'ar-route', freeModels: ['ar-route'] } } } } })
+  check('chatPath + requestExtra 上游注册成功', reg.ok === true, JSON.stringify(reg))
+  const r = await collect(adapter.stream({ provider: 'freeroute', model: 'ar-route', messages: msg('ping') }))
+  check('非标路径请求出字', r.text === 'Mock reply OK', JSON.stringify(r.text))
+  check('请求体带 mode 且无 model 字段', seen.length > 0 && JSON.parse(seen[seen.length - 1]).mode === 'balanced' && !('model' in JSON.parse(seen[seen.length - 1])), seen[seen.length - 1] || '')
+  // 非法值被 sanitize 剔除：requestExtra 嵌套对象/危险 key 不进配置
+  const reg2 = await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-ar2': { enabled: true, custom: { noAuth: true, baseUrl: 'http://127.0.0.1:' + portAR, requestExtra: { '../evil': 1, nested: { a: 1 }, ok: 'x' }, models: [{ id: 'ar2' }], defaultModel: 'ar2' } } } } })
+  check('requestExtra 只收标量与安全 key', reg2.ok === true)
+  const cfgDisk = JSON.parse(readFileSync(CFG, 'utf8'))
+  const ar2 = cfgDisk.upstreams['mock-ar2'] && cfgDisk.upstreams['mock-ar2'].custom
+  check('落盘的 requestExtra 已剔除非法字段', ar2 && ar2.requestExtra && ar2.requestExtra.ok === 'x' && !('nested' in ar2.requestExtra) && !('../evil' in ar2.requestExtra), JSON.stringify(ar2 && ar2.requestExtra))
+  const rm = await rpc('freeroute.remove-upstream', { id: 'mock-ar' })
+  const rm2 = await rpc('freeroute.remove-upstream', { id: 'mock-ar2' })
+  check('清理 mock-ar / mock-ar2', rm.ok === true && rm2.ok === true)
+}
+
 section('4. 全部候选失败 → 错误暴露')
 {
   await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-ok': { enabled: false } } } })
@@ -436,9 +472,12 @@ section('8. 鉴权：缺 Key 跳过 / 错 Key 记 AUTH / 对 Key 成功')
   check('auto 跳过无 Key 上游仍可用', rAuto.text === 'Mock reply OK')
   const rKey = await rpc('freeroute.set-key', { id: 'mock-secure', key: 'wrong' })
   check('set-key 写入 credentials', rKey.ok === true && keys.get('FREEROUTE_TESTSECURE_API_KEY') === 'wrong')
-  let err = null
-  try { await collect(adapter.stream({ provider: 'freeroute', model: 'sec-model', messages: msg('ping') })) } catch (e) { err = e }
-  check('错误 Key → AUTH 失败', err != null && err.code === 'AUTH', String(err && err.code))
+  // v0.7.2：单模型失败降级 auto 兜底，错 Key 不再中断对话
+  const rBad = await collect(adapter.stream({ provider: 'freeroute', model: 'sec-model', messages: msg('ping') }))
+  check('错 Key 的单模型降级 auto 兜底出字', rBad.text === 'Mock reply OK', JSON.stringify(rBad.text))
+  const stBad = await state()
+  const msBad = stBad.upstreams.find((u) => u.id === 'mock-secure')
+  check('AUTH 失败仍记录到上游健康（面板可见）', msBad.health.lastError != null && /鉴权/.test(String(msBad.health.lastError)) && msBad.health.state !== 'up', JSON.stringify(msBad.health))
   await rpc('freeroute.apply-patch', {
     patch: { upstreams: { 'mock-goodkey': { enabled: true, custom: { baseUrl: b(portAuth), keyRef: 'FREEROUTE_GOODKEY_API_KEY', models: [{ id: 'gk-model', name: 'G', contextWindow: 8192 }], defaultModel: 'gk-model' } } } }
   })
@@ -676,9 +715,10 @@ section('13c. 模型级故障转移：单模型不可用先换模型再换上游
   const portDead = await listen('deadall', mkFail())
   const reg2 = await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-n': { custom: { baseUrl: 'http://127.0.0.1:' + portDead + '/v1', models: [{ id: 'nb-free' }, { id: 'nb2-free' }] } } } } })
   check('替换 mock-n 为全死上游', reg2.ok === true, JSON.stringify(reg2))
-  let errAll = null
-  try { await collect(adapter.stream({ provider: 'freeroute', model: 'nb-free', messages: msg('ping') })) } catch (e) { errAll = e }
-  check('指定模型失败正常报错', errAll !== null && String(errAll.message).indexOf('上游错误') >= 0, String((errAll && errAll.message) || errAll))
+  // v0.7.2：单模型（nb-free）在上游判死刑后降级 auto 兜底，不再直接报错；
+  // 原始失败仍记录健康（下一个 check），auto 链全死的错误暴露见第 4 节
+  const rDeg = await collect(adapter.stream({ provider: 'freeroute', model: 'nb-free', messages: msg('ping') }))
+  check('单模型失败降级 auto 兜底出字', rDeg.text === 'Mock reply OK', JSON.stringify(rDeg.text))
   const stB = await state()
   const n2 = stB.upstreams.find((u) => u.id === 'mock-n')
   check('最后一个候选失败后进入冷却（真死刑）', n2.health.state !== 'up', JSON.stringify(n2.health))
@@ -844,6 +884,81 @@ section('15. JSON 配置文件：热重载 + keys 导入 + 落盘')
   const rm15 = await rpc('freeroute.remove-upstream', { id: 'mock-json2' })
   const disk2 = JSON.parse(readFileSync(CFG, 'utf8'))
   check('remove-upstream 落盘（文件里同步消失）', rm15.ok === true && !disk2.upstreams['mock-json2'] && disk2.order.indexOf('mock-json2') < 0)
+}
+
+section('15b. 单模型降级：唯一上游失败/冷却时走 auto 兜底')
+{
+  await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-dead': { enabled: true, custom: { noAuth: true, baseUrl: b(portFail), models: [{ id: 'dead-model', name: 'D' }], defaultModel: 'dead-model', freeModels: ['dead-model'] } } } } })
+  // a) 候选全挂：唯一候选 mock-dead(502) 失败 → 降级 auto（mock-json）继续
+  const ra = await collect(adapter.stream({ provider: 'freeroute', model: 'dead-model', messages: msg('ping') }))
+  check('候选全挂时单模型降级 auto 出字', ra.text === 'Mock reply OK', JSON.stringify(ra.text))
+  // b) 唯一上游已在冷却 → 无候选 → 直接降级 auto（v0.7.2 前这里抛 NO_UPSTREAM）
+  const rb = await collect(adapter.stream({ provider: 'freeroute', model: 'dead-model', messages: msg('ping') }))
+  check('唯一上游冷却时单模型降级 auto 出字', rb.text === 'Mock reply OK', JSON.stringify(rb.text))
+  const rm = await rpc('freeroute.remove-upstream', { id: 'mock-dead' })
+  check('清理 mock-dead', rm.ok === true)
+}
+
+section('16. 本地端点：无 Key + CORS + 工具调用（供其他 agent 复用）')
+{
+  const reg = webRegs.find(function (r) { return r && r.kind === 'prefix' && r.path === '/freeroute' })
+  check('webServer 注册了 /freeroute 前缀端点', reg != null && typeof reg.handler === 'function')
+  const handler = reg.handler
+  const makeRes = function () {
+    const r = { status: 0, headers: {}, chunks: [], ended: false }
+    r.writeHead = function (s, h) { r.status = s; Object.assign(r.headers, h || {}); return r }
+    r.write = function (c) { r.chunks.push(String(c)); return true }
+    r.end = function (c) { if (c != null) r.chunks.push(String(c)); r.ended = true; return r }
+    return r
+  }
+  const makeReq = function (method, url, body) {
+    const buf = body == null ? '' : (typeof body === 'string' ? body : JSON.stringify(body))
+    return {
+      method, url, headers: {},
+      [Symbol.asyncIterator]: async function* () { if (buf) yield Buffer.from(buf, 'utf8') }
+    }
+  }
+  const call = async function (method, url, body) {
+    const res = makeRes()
+    await handler(makeReq(method, url, body), res)
+    for (let i = 0; i < 200 && !res.ended; i++) await new Promise(function (r) { setTimeout(r, 10) })
+    return res
+  }
+  // a) CORS 预检：浏览器类客户端（如运行在别的 origin 的 Web agent）可直连
+  const pre = await call('OPTIONS', '/freeroute/v1/chat/completions')
+  check('OPTIONS 预检 204 + 放通 CORS', pre.status === 204 && pre.headers['access-control-allow-origin'] === '*', JSON.stringify({ s: pre.status, h: pre.headers['access-control-allow-origin'] }))
+  // b) health 带 CORS 头
+  const h = await call('GET', '/freeroute/health')
+  const hj = JSON.parse(h.chunks.join(''))
+  check('health 200 + CORS', h.status === 200 && hj.ok === true && h.headers['access-control-allow-origin'] === '*')
+  // c) 无任何 Authorization 头也能用（按设计免 Key）
+  const chat = await call('POST', '/freeroute/v1/chat/completions', { model: 'js-free', messages: [{ role: 'user', content: 'hi' }], max_tokens: 16 })
+  const cj = JSON.parse(chat.chunks.join(''))
+  check('无 Key 非流式补全成功', chat.status === 200 && cj.choices[0].message.content === 'Mock reply OK' && cj.object === 'chat.completion', JSON.stringify(cj).slice(0, 120))
+  check('补全响应带 CORS 头', chat.headers['access-control-allow-origin'] === '*')
+  // d) 工具调用透传：上游返回 tool_calls → OpenAI 形态回给客户端
+  await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-rich': { enabled: true, custom: { noAuth: true, baseUrl: b(portRich), models: [{ id: 'rich-free', name: 'R' }], defaultModel: 'rich-free', freeModels: ['rich-free'] } } } } })
+  const tc = await call('POST', '/freeroute/v1/chat/completions', {
+    model: 'rich-free',
+    messages: [{ role: 'user', content: '北京天气' }],
+    tools: [{ type: 'function', function: { name: 'get_weather', description: '查天气', parameters: { type: 'object', properties: { city: { type: 'string' } } } } }]
+  })
+  const tj = JSON.parse(tc.chunks.join(''))
+  const call0 = tj.choices[0].message.tool_calls && tj.choices[0].message.tool_calls[0]
+  check('非流式返回 tool_calls（OpenAI 形态）', tc.status === 200 && call0 && call0.function.name === 'get_weather' && call0.function.arguments === '{"city":"Beijing"}', JSON.stringify(tj.choices[0].message).slice(0, 160))
+  check('finish_reason=tool_calls', tj.choices[0].finish_reason === 'tool_calls', String(tj.choices[0].finish_reason))
+  // e) 流式：SSE 分片 + tool_calls 增量 + finish_reason + [DONE]
+  const s = await call('POST', '/freeroute/v1/chat/completions', { model: 'rich-free', stream: true, messages: [{ role: 'user', content: '北京天气' }] })
+  const raw = s.chunks.join('')
+  const sseChunks = raw.split('\n\n').filter(function (x) { return x.indexOf('data: ') === 0 }).map(function (x) { return x.slice(6) })
+  const hasToolDelta = sseChunks.some(function (x) { try { const o = JSON.parse(x); return o.choices[0] && o.choices[0].delta && Array.isArray(o.choices[0].delta.tool_calls) } catch (e) { return false } })
+  const hasFinish = sseChunks.some(function (x) { try { const o = JSON.parse(x); return o.choices[0] && o.choices[0].finish_reason === 'tool_calls' } catch (e) { return false } })
+  check('流式 SSE：tool_calls 增量 + finish_reason + [DONE]', s.status === 200 && s.headers['content-type'] === 'text/event-stream' && hasToolDelta && hasFinish && sseChunks[sseChunks.length - 1] === '[DONE]', raw.slice(0, 120))
+  // f) 未知路径 404 + CORS
+  const nf = await call('GET', '/freeroute/nope')
+  check('未知路径 404', nf.status === 404)
+  const rm = await rpc('freeroute.remove-upstream', { id: 'mock-rich' })
+  check('清理 mock-rich', rm.ok === true)
 }
 
 for (const d of disposers) { try { d() } catch { /* ignore */ } }

@@ -19,6 +19,8 @@ const NAMES = {
   'freeroute.state': 'state',
   'freeroute.set-key': 'setKey',
   'freeroute.apply-patch': 'applyPatch',
+  'freeroute.remove-upstream': 'removeUpstream',
+  'freeroute.restore-upstream': 'restoreUpstream',
   'freeroute.catalog.sync': 'catalogSync',
   'freeroute.probe': 'probe',
   'freeroute.test': 'test',
@@ -46,13 +48,15 @@ src = mustReplace(src, 'const d = ctxRef.interval(tick, 5000)',
 src = mustReplace(src, 'function Section(props) {', 'function Section(_props) {')
 src = src.split('.catch(function (e) { })').join('.catch(function () { })')
 
-// 3. Drop the ctxRef module-level capture comment+var (static client has a real ctx in apply).
+// 3. Keep the ctxRef module-level capture (useLang reads the locale service
+// through it during render); drop only the dynamic-scope comment. The static
+// apply(c) below assigns the real client ctx.
 src = mustReplace(src,
   `// ctx 是 apply(ctx) 的参数，组件渲染时不在作用域内；用模块级引用转交。
 // （styles / host / React 是 client 求值环境提供的全局，ctx 不是。）
 let ctxRef = null
 
-`, '')
+`, 'let ctxRef = null\n\n')
 
 // 4. Tail: dynamic plugin return → static module exports.
 const tailMarker = `return {
@@ -120,6 +124,7 @@ ${src}
 		const inject = ["connection", "slots"];
 
 		function apply(c) {
+			ctxRef = c;
 			connectionSvc = c.get("connection");
 			const slots = c.get("slots");
 			if (slots === undefined) return;
