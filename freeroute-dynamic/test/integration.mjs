@@ -997,6 +997,46 @@ section('16b. 全局代理：默认关闭 / 兜底生效 / 上游覆盖 / 清除
   await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-json': { custom: { proxy: '' } } } } })
 }
 
+section('18. 200+配额通知文本：自动切换 / 不误伤 / 冷却')
+{
+  // aihubmix 实测场景：配额用尽返回 HTTP 200 + 纯文本提示，传输层无从感知。
+  const NOTICE = 'Sorry, to prevent abuse of free resources, accounts that have not been recharged can only try 10 times. You can increase the free quota after recharging; https://console.aihubmix.com/topup'
+  const portQ = await listen('quota200', function (req, res) {
+    sse(res, [
+      j({ choices: [{ delta: { content: NOTICE } }] }),
+      j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+      'data: [DONE]\n\n'
+    ])
+  })
+  // 误伤对照：短语出现在第 250 字符之后（窗口外），必须是完整正常回答
+  const late = 'X'.repeat(250) + ' to prevent abuse of free resources ' + 'Y'.repeat(50)
+  const portL = await listen('quotaLate', function (req, res) {
+    sse(res, [
+      j({ choices: [{ delta: { content: late } }] }),
+      j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 2, completion_tokens: 2 } }),
+      'data: [DONE]\n\n'
+    ])
+  })
+  // q1 声明同款模型排在 mock-json 前：请求 js-free 应先撞 q1 再切 mock-json
+  const p1 = await rpc('freeroute.apply-patch', { patch: { order: ['q1', 'quota-late', 'mock-json'], upstreams: {
+    'q1': { enabled: true, custom: { noAuth: true, baseUrl: b(portQ), models: [{ id: 'js-free', name: 'Q1' }], defaultModel: 'js-free' } },
+    'quota-late': { enabled: true, custom: { noAuth: true, baseUrl: b(portL), models: [{ id: 'late-free', name: 'Late' }], defaultModel: 'late-free' } }
+  } } })
+  check('注册 200+通知与窗口外对照上游', p1.ok === true, JSON.stringify(p1))
+  const r18 = await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  check('通知文本被拦截并切换到 mock-json', r18.text === 'Mock reply OK', JSON.stringify(r18.text))
+  const st18 = await state()
+  const q1s = st18.upstreams.find(function (u) { return u.id === 'q1' })
+  check('q1 计入失败并进入冷却', q1s.stats.requests >= 1 && q1s.stats.ok === 0 && q1s.health.state === 'cooling', JSON.stringify({ r: q1s.stats.requests, ok: q1s.stats.ok, h: q1s.health.state }))
+  // 误伤对照：late-free 的完整回答必须原样到达
+  const r18b = await collect(adapter.stream({ provider: 'freeroute', model: 'late-free', messages: msg('ping') }))
+  check('窗口外短语不误伤（完整回答保留）', r18b.text === late, 'len=' + r18b.text.length)
+  // 清理
+  await rpc('freeroute.apply-patch', { patch: { order: ['mock-json'] } })
+  await rpc('freeroute.remove-upstream', { id: 'q1' })
+  await rpc('freeroute.remove-upstream', { id: 'quota-late' })
+}
+
 for (const d of disposers) { try { d() } catch { /* ignore */ } }
 for (const s of Object.values(servers)) { s.close() }
 
