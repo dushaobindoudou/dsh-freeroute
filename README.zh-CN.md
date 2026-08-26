@@ -43,6 +43,11 @@
    （`free-proxy` 设置命名空间持久化）。
 5. **本地端点**：`/freeroute/v1/chat/completions` + `/freeroute/v1/models`，
    任意 OpenAI 工具指向它即用同一套免费池。
+6. **全局代理（默认关闭）**：`设置 → 模型 → 免费 → 高级设置` 里配置一条
+   `http://127.0.0.1:7890` 型代理，所有未单独配置代理的上游（对话请求与
+   模型探测）自动走它；上游自定义或目录声明的 `proxy` 优先于全局；远程目录
+   同步始终直连。大陆网络用户把 Clash/v2ray 端口填一处即可，无需逐个上游
+   配置。
 
 ## 设置面板
 
@@ -56,6 +61,43 @@ dsh 内置的 `设置 -> 模型` 页被可逆地包装增强：标题与介绍�
 
 设置导航里没有独立的 freeroute 平级项（仅当宿主没有可包装的模型页时才退回
 独立设置页）。`/freeproxy` 命令输出文本状态。
+
+## 让其他 Agent / 工具接入（一直用 auto）
+
+dsh web 启动后，本插件在同一端口上暴露一个 **OpenAI 兼容端点**，任何
+支持自定义 base URL 的 agent / 工具都能直接复用这套免费池：
+
+- **Base URL**：`http://127.0.0.1:<dsh web 端口>/freeroute/v1`
+  （默认端口 3080；免费面板底部也显示当前完整地址）
+- **API Key**：不需要。端点仅监听本机回环；某些工具强制要求非空 Key，
+  随便填占位符即可（如 `sk-freeroute`）
+- **模型**：填 `auto` 或**干脆不传**（默认就是 auto）——按优先级自动选
+  已启用的免费上游，失败 / 限流 / 首 token 中断时全链自动切换，单模型
+  失败自动降级为链式 fallback，无需人工干预
+- **能力**：`stream`、`tools`（function calling）、`stop`、`temperature`、
+  `max_tokens` 均透传；CORS 已开放，浏览器内插件可直连
+- **健康检查**：`GET /freeroute/health`；**模型列表**：`GET /freeroute/v1/models`
+  （第一项就是 `auto`）
+
+curl 示例（最简，不带 model 即 auto）：
+
+```sh
+curl http://127.0.0.1:3080/freeroute/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"messages":[{"role":"user","content":"你好"}]}'
+```
+
+常见工具配置：
+
+| 工具 | 配置 |
+|---|---|
+| OpenAI SDK | `baseURL: 'http://127.0.0.1:3080/freeroute/v1'`，`apiKey: 'sk-freeroute'`，`model: 'auto'` |
+| Codex CLI | `~/.codex/config.toml` 里 model_provider 指向该 base URL（wire_api = "chat"） |
+| Cline / Roo / Continue | OpenAI Compatible，Base URL 同上，模型名 `auto` |
+| 任意 OpenAI 兼容网关 | 把本端点作为上游挂进 uni-api / new-api / LiteLLM 即可 |
+
+注意：端点随 `dsh web` 进程存活（同机使用）；至少在免费页签给一个上游
+配好 Key，auto 链才有可用节点。
 
 ## 安装
 

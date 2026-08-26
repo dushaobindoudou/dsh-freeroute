@@ -4,7 +4,41 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.2]
+
+### Added
+
+- 按 dsh 插件文档（`@deepseek-ai/dsh-llm-retry`）为 freeroute 适配器配置 per-provider
+  重试策略：`providerRetryPolicy` 现返回 `mode: 'always'` + 嵌套 `backoff`
+  （`initialDelayMs: 1000 / maxDelayMs: 30000 / jitterRatio: 0.2`），在
+  `llm.registerAdapter()` 时一次性捕获。此前省略该方法会退回 dsh-llm-retry 的
+  `normal` 默认（5 次上限），现在单个模型请求失败不再受次数限制，
+  由故障转移链（换 Key → 换上游 → auto 兜底）承担恢复职责。
+
+### Changed
+
+- 轮换/故障转移/启动日志不再打印到控制台，改写 `$DSH_HOME/.dsh/freeroute/freeroute.log`
+  （ISO 时间戳行，追加写）。日志文件按 5 MB 大小或 7 天时效滚动（重命名为
+  `.1`），宿主无 `fs`/`os` 注入时静默降级为 no-op。`src/host/` 与
+  `src/client/` 下已无任何 `console.log`（仅 `scripts/`、`test/` 的构建与测试工具保留）。
+
 ## [Unreleased]
+
+### Fixed
+
+- 「200 + 配额通知文本」自动切换：部分网关（aihubmix 实测）配额用尽时返回
+  HTTP 200 + 一段纯文本提示而非错误码，传输层视为成功，提示被当成正常回答
+  流给调用方，轮换/冷却/切换全部不触发。现对正文前 240 字符做配额模板嗅探
+  （命中即按 RATE_LIMIT 处理：换 Key → 上游冷却 → 链式切换下一上游），窗口
+  外或非 text 块不受影响，不误伤正常长回答（集成测试含误伤对照用例）。
+
+### Added
+
+- 全局代理支持（默认关闭）：`设置 → 模型 → 免费 → 高级设置` 新增代理卡片，
+  填一条 `http://127.0.0.1:7890` 型地址即让所有未单独配置代理的上游（对话
+  请求与模型探测）共用它；优先级：上游 `custom.proxy` > 目录声明的 proxy >
+  全局代理；远程目录同步始终直连。留空保存或「清除」按钮即回到直连。大陆
+  网络用户无需再逐个上游改 JSON 配代理。
 
 ### Fixed
 

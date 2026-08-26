@@ -35,7 +35,7 @@
         } catch (e) { console.error('[freeroute] settings 注册失败:', emsg(e)) }
       }
     }
-    if (configFileOk) console.log('[freeroute] 配置文件:', configPath)
+    if (configFileOk) log('[freeroute] 配置文件:', configPath)
 
     ctx.effect(function () { return llm.registerAdapter([ROUTE], adapter) })
     for (const pair of Object.entries(rpc)) {
@@ -96,4 +96,4 @@
       // 免费目录 10 分钟强刷：目录即真相，静态列表只作种子
       return timer.interval(function () { probeAll().catch(function () { }) }, 600000)
     })
-    console.log('[freeroute] v' + VERSION + ' 就绪：路由 ' + ROUTE + '，内置上游 ' + BUILTIN_UPSTREAMS.length + ' 个，支持模型探测与远程目录（Cloudflare JSON / models.dev 格式）')
+    log('[freeroute] v' + VERSION + ' 就绪：路由 ' + ROUTE + '，内置上游 ' + BUILTIN_UPSTREAMS.length + ' 个，支持模型探测与远程目录（Cloudflare JSON / models.dev 格式）')

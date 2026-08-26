@@ -55,6 +55,12 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    `api.json`, zero-cost models auto-filtered) → user patch persisted under
    the `free-proxy` settings namespace.
 5. **Local endpoint** — `http://127.0.0.1:<port>/freeroute/v1` is an
+6. **Global proxy (off by default)**: set one `http://127.0.0.1:7890`-style
+   proxy under `Settings → Models → Free → Advanced`; every upstream without
+   its own proxy (chat requests and model probing) goes through it. Per-upstream
+   `custom.proxy` and catalog-declared `proxy` win over the global one; catalog
+   sync always connects directly. One entry covers Clash/v2ray users — no
+   per-upstream configuration needed.
    OpenAI-compatible base URL (chat/completions with streaming, tools and
    usage; models; health). No API key required, CORS enabled — any other
    agent or client (CLI or browser) can ride the same free pool.
@@ -78,6 +84,37 @@ roles, arrow-key navigation, visited panels stay mounted):
 There is no sibling freeroute item in the settings nav (a standalone section
 appears only if the host ships no wrappable models entry). The `/freeproxy`
 command prints a text status.
+
+## Let other agents / tools use the pool (always auto)
+
+While `dsh web` runs, the plugin serves an **OpenAI-compatible endpoint** on the
+same port — any agent or tool that accepts a custom base URL can reuse the free
+pool:
+
+- **Base URL**: `http://127.0.0.1:<dsh web port>/freeroute/v1`
+  (default port 3080; the Free panel footer shows the exact URL)
+- **API key**: none needed (loopback only). Tools that demand a non-empty key
+  accept a placeholder like `sk-freeroute`
+- **Model**: set `auto`, or **omit it entirely** (auto is the default) — picks
+  enabled free upstreams by priority, fails over across the whole chain on
+  errors / rate limits / pre-first-token drops, and degrades single-model
+  requests to chain fallback automatically
+- **Capabilities**: `stream`, `tools` (function calling), `stop`,
+  `temperature`, `max_tokens` pass through; CORS is open for browser extensions
+- **Health**: `GET /freeroute/health`; **model list**:
+  `GET /freeroute/v1/models` (`auto` is the first entry)
+
+Minimal curl (no model field = auto):
+
+```sh
+curl http://127.0.0.1:3080/freeroute/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"messages":[{"role":"user","content":"hello"}]}'
+```
+
+Notes: the endpoint lives as long as the `dsh web` process (same machine);
+configure at least one upstream key in the Free panel so the auto chain has a
+usable node.
 
 ## Install
 

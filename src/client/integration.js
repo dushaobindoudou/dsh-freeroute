@@ -33,7 +33,6 @@ function freerouteModelsIntegration(slots) {
         try { models.__freerouteWrap = true } catch (e3) { }
         models.component = ModelsSectionWithFreeRoute
         bump()
-        console.log('[freeroute] 已在 设置 → 模型 页内嵌「免费模型」入口（可逆包装内置模型页）')
       }
       return
     }

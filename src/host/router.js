@@ -28,7 +28,7 @@
             coolKey(ordered[i].ref, e)
             const kidx = keyNumber(ordered[i].ref)
             noteKeyFail(upstream.id, kidx, code)
-            console.log('[freeroute] 上游 ' + upstream.id + ' 的第 ' + kidx + ' 把 Key 失败(' + code + ')，轮换下一把')
+            log('[freeroute] 上游 ' + upstream.id + ' 的第 ' + kidx + ' 把 Key 失败(' + code + ')，轮换下一把')
             continue
           }
           recordFailure(upstream.id, e, hooks && hooks.suppressCooldown === true)
@@ -78,10 +78,41 @@
         if (hooks && typeof hooks.onProc === 'function') { try { hooks.onProc(proc) } catch (e) { } }
         if (!proc || !proc.stdout) throw mkFail('curl 输出管道不可用', 'TRANSPORT')
         const tr = createTranslator()
+        // 配额通知嗅探：部分网关（如 aihubmix）配额用尽时返回 HTTP 200 + 一段
+        // 纯文本提示而非错误码。传输层看到 200 视为成功，提示会被当成「正常
+        // 回答」流给调用方，轮换/冷却/切换全部不触发。嗅探正文前 SNIFF_WINDOW
+        // 个字符：命中已知配额模板 → 抛 RATE_LIMIT（attempt 换 Key / 记冷却，
+        // chaseChain 切下一上游）；窗口越过后原样放行，不影响真实回答。
+        const held = []
+        let acc = ''
+        let sniffing = true
         try {
           for await (const bytes of proc.stdout) {
-            for (const ck of tr.feed(bytes)) yield ck
+            for (const ck of tr.feed(bytes)) {
+              if (sniffing && ck.type === 'text-delta') {
+                acc += ck.text
+                // 只匹配窗口内子串：单块超窗时避免窗口外的词误伤
+                if (quotaTextHit(acc.slice(0, SNIFF_WINDOW))) {
+                  throw mkFail('上游 ' + upstream.id + ' 免费配额已用尽（200+通知文本检测）', 'RATE_LIMIT')
+                }
+                held.push(ck)
+                if (acc.length >= SNIFF_WINDOW) {
+                  sniffing = false
+                  for (const h of held) yield h
+                  held.length = 0
+                }
+                continue
+              }
+              if (sniffing && held.length > 0) {
+                // 非 text 块（usage/finish/tool-call）到达即结束嗅探期，先放行缓冲
+                sniffing = false
+                for (const h of held) yield h
+                held.length = 0
+              }
+              yield ck
+            }
           }
+          if (held.length > 0) { for (const h of held) yield h }
           for (const ck of tr.flush()) yield ck
           tr.finishOrThrow()
         } catch (e) {
@@ -103,6 +134,18 @@
     }
 
     const DELTA_TYPES = ['text-delta', 'reasoning-delta', 'tool-call-delta']
+
+    // 已知「200 + 配额通知文本」模板（按厂商实测补充；机制与厂商无关）。
+    // 只在正文前 SNIFF_WINDOW 字符内匹配，避免误伤正常长回答。
+    const SNIFF_WINDOW = 240
+    const QUOTA_TEXT_RES = [
+      /to prevent abuse of free resources/i,
+      /accounts? that have not been recharged/i
+    ]
+    function quotaTextHit(acc) {
+      for (const re of QUOTA_TEXT_RES) { if (re.test(acc)) return true }
+      return false
+    }
 
     function candidatesSync(pool, model) {
       if (model === 'auto') {
@@ -190,7 +233,7 @@
             recordFailure(cand.upstream.id, emptyFinish, sameUpNext)
             lastErr = emptyFinish
             const nxt0 = cands[i + 1]
-            if (nxt0) console.log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 空响应(' + String(emptyFinish.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt0.model : nxt0.upstream.id))
+            if (nxt0) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 空响应(' + String(emptyFinish.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt0.model : nxt0.upstream.id))
             continue
           }
           return
@@ -199,7 +242,7 @@
           if (options.signal && options.signal.aborted) throw e
           if (produced) throw e
           const nxt = cands[i + 1]
-          if (nxt) console.log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 失败(' + String(e && e.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt.model : nxt.upstream.id))
+          if (nxt) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 失败(' + String(e && e.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt.model : nxt.upstream.id))
           if (String((e && e.code) || '') === 'SERVER') scheduleReprobe(cand.upstream.id)
         }
       }
@@ -239,13 +282,22 @@
         // 原始错误比笼统的 NO_UPSTREAM 更有诊断价值
         throw primaryErr || mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
       }
-      if (!isAuto) console.log('[freeroute] 模型 ' + options.model + (cands.length === 0 ? ' 无可用候选（冷却中）' : ' 的全部候选失败') + '，降级 auto 兜底（' + fb.length + ' 个候选）')
+      if (!isAuto) log('[freeroute] 模型 ' + options.model + (cands.length === 0 ? ' 无可用候选（冷却中）' : ' 的全部候选失败') + '，降级 auto 兜底（' + fb.length + ' 个候选）')
       for await (const ck of chaseChain(fb, options)) yield ck
     }
 
     const adapter = {
       providerInfo: function (provider) { return { id: provider, name: 'FreeRoute 免费模型' } },
-      providerRetryPolicy: function () { return undefined },
+      // 按 dsh 插件文档（@deepseek-ai/dsh-llm-retry）设置 per-provider 重试策略。
+      // 适配器在 registerAdapter() 时通过 providerRetryPolicy(provider) 捕获一次，
+      // 省略则退回 dsh-llm-retry 的 normal 默认（5 次、500ms→10s）。
+      // always mode：无次数上限地重试每个模型请求失败，直到成功/取消/插件 dispose。
+      providerRetryPolicy: function () {
+        return {
+          mode: 'always',
+          backoff: { initialDelayMs: 1000, maxDelayMs: 30000, jitterRatio: 0.2 }
+        }
+      },
       listModels: async function () {
         // 只展示「免费且可用」：auto -> 免费模型（通用名，跨上游合并去重）。
         // 未配 Key 上游的模型不展示（选了也用不了）；付费模型不进选择器，

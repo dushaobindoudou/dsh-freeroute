@@ -2,6 +2,9 @@ function sanitizeConfig(raw) {
   const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {}
   const out = { order: [], upstreams: {} }
   if (Array.isArray(src.order)) out.order = src.order.filter(function (x) { return typeof x === 'string' })
+  // 全局代理（默认不开启）：作用于所有未单独配置代理的上游（对话 + 模型探测）。
+  // 空串/非法值被丢弃 = 关闭；上游 custom.proxy 与目录 proxy 优先于全局。
+  if (typeof src.proxy === 'string' && /^https?:\/\//.test(src.proxy)) out.proxy = src.proxy.trim()
   if (src.upstreams && typeof src.upstreams === 'object') {
     for (const pair of Object.entries(src.upstreams)) {
       const k = pair[0]
