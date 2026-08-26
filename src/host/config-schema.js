@@ -37,6 +37,13 @@ function sanitizeConfig(raw) {
   }
   if (typeof src.autoTakeover === 'boolean') out.autoTakeover = src.autoTakeover
   if (typeof src.autoInjected === 'boolean') out.autoInjected = src.autoInjected
+  // 接管前的用户原默认（显式打开开关授权覆盖时备份，关闭时恢复）
+  if (src.takeoverBackup && typeof src.takeoverBackup === 'object') {
+    const tb = src.takeoverBackup
+    if (typeof tb.provider === 'string' && tb.provider.length > 0 && typeof tb.model === 'string' && tb.model.length > 0) {
+      out.takeoverBackup = { provider: tb.provider, model: tb.model }
+    }
+  }
   if (src.catalog && typeof src.catalog === 'object') {
     const c = {}
     if (typeof src.catalog.remoteUrl === 'string') c.remoteUrl = src.catalog.remoteUrl.trim()

@@ -56,6 +56,9 @@ const deepMerge = (t, p) => {
   }
   return t
 }
+// 各命名空间的用户层（settings.yaml 语义）：agent-default-model 的显式
+// 配置落在这里，takeover 的「不打扰既有默认」纪律据此判定
+const docStore = {}
 const fakeSettings = {
   register(ns, schemaFn) {
     return {
@@ -65,6 +68,13 @@ const fakeSettings = {
   },
   async update(ns, patch) { deepMerge(store, structuredClone(patch)); for (const w of watchers) w() },
   async replace(ns, v) { store = structuredClone(v); for (const w of watchers) w() },
+  async mutate(ns, ops) {
+    for (const op of ops) {
+      if (op.op === 'unset') delete docStore[op.path[0]]
+    }
+    for (const w of watchers) w()
+  },
+  section(ns) { return docStore[ns] },
   describe() { return [{ ns: 'free-proxy', user: structuredClone(store) }] },
 }
 
@@ -152,7 +162,11 @@ const saveCalls = []
 let currentSel = { provider: 'deepseek', model: 'deepseek-chat' }
 const fakeDefaultModel = {
   currentSelection: () => currentSel,
-  saveSelection: async (s) => { saveCalls.push(structuredClone(s)); currentSel = s },
+  // 与真实 dsh 一致：saveSelection 写 settings 用户层（docStore 可见）
+  saveSelection: async (s) => {
+    saveCalls.push(structuredClone(s)); currentSel = s
+    docStore['agent-default-model'] = structuredClone(s)
+  },
 }
 
 // ---------------------------------------------------------------- 挂载
@@ -261,6 +275,45 @@ assert.equal(saveCalls.length >= 1, true, '就绪后已接管默认模型')
 assert.deepEqual(saveCalls[0], { provider: 'freeroute', model: 'auto' }, '接管目标 freeroute/auto')
 await new Promise((r) => setTimeout(r, 9500))
 assert.equal(saveCalls.length, 1, '接管只发生一次（takeoverDone 门控）')
+
+console.log('■ 6b. 接管纪律（显式默认不被覆盖 / 持久化标记 / 可恢复）')
+const nSaves = saveCalls.length
+// a) 用户显式配置了默认模型：非显式巡检绝不覆盖（v0.7.2 修复的根因）
+currentSel = { provider: 'vol', model: 'glm-5-3' }
+docStore['agent-default-model'] = { provider: 'vol', model: 'glm-5-3' }
+await remote.applyPatch({ patch: { order: [] } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'vol', '显式默认不被自动接管覆盖')
+assert.equal(saveCalls.length, nSaves, '未产生新的接管写入')
+// 上一步若清了接管标记，配置文件里不应再残留 autoInjected
+const cfgA = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
+assert.ok(!cfgA.autoInjected, '用户改走后接管标记被清除（不再重复接管）')
+
+// b) 显式打开「自动接管」开关 = 明确授权：可覆盖显式默认，原值持久备份
+await remote.applyPatch({ patch: { autoTakeover: true } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'freeroute', '显式开启开关授权接管')
+const cfgB = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
+assert.equal(cfgB.autoInjected, true, '接管标记持久化到配置文件')
+assert.deepEqual(cfgB.takeoverBackup, { provider: 'vol', model: 'glm-5-3' }, '原默认持久备份')
+
+// c) 用户手动把默认改走：巡检尊重选择，不重复接管
+currentSel = { provider: 'vol', model: 'glm-5-3' }
+docStore['agent-default-model'] = { provider: 'vol', model: 'glm-5-3' }
+await remote.applyPatch({ patch: { order: [] } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'vol', '手动改走后不再重复接管')
+
+// d) 关闭自动接管：恢复接管前的用户原默认，清除标记
+await remote.applyPatch({ patch: { autoTakeover: false } })
+await new Promise((r) => setTimeout(r, 50))
+assert.deepEqual(currentSel, { provider: 'vol', model: 'glm-5-3' }, '关闭开关恢复原默认')
+const cfgD = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
+assert.ok(!cfgD.autoInjected && !cfgD.takeoverBackup, '标记与备份清除')
+// 重新显式开启，保持后续断言环境一致
+await remote.applyPatch({ patch: { autoTakeover: true } })
+await new Promise((r) => setTimeout(r, 50))
+assert.equal(currentSel.provider, 'freeroute', '显式开启再次接管')
 
 // ■ 9. 静态构建产物契约：客户端必须解包 typert {ok,value} 信封；
 // 宿主必须声明核心服务依赖（否则先于服务启动时快照 undefined）。

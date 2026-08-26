@@ -24,6 +24,8 @@
         const tmp = configPath + '.tmp'
         const payload = { order: userConfig.order || [], upstreams: userConfig.upstreams || {} }
         if (userConfig.autoTakeover !== undefined) payload.autoTakeover = userConfig.autoTakeover
+        if (userConfig.autoInjected !== undefined) payload.autoInjected = userConfig.autoInjected
+        if (userConfig.takeoverBackup !== undefined) payload.takeoverBackup = userConfig.takeoverBackup
         if (userConfig.catalog !== undefined) payload.catalog = userConfig.catalog
         fsx.writeFileSync(tmp, JSON.stringify(payload, null, 2) + '\n', 'utf8')
         fsx.renameSync(tmp, configPath)

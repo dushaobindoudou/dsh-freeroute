@@ -118,17 +118,24 @@
           await requireSettings().update(NS, p)
         }
         if (p && p.autoTakeover === false) {
-          // 关闭自动接管：若本次进程接过管，恢复用户原先的默认模型选择
+          // 关闭自动接管：撤销本次接管，恢复用户原默认模型选择。
+          // 当前默认仍是本路由（接管在生效）才动它：用户已手动改走时
+          // 只清标记，不再覆盖用户的最新选择。
           try {
-            if (takeoverDone) {
-              takeoverDone = false
-              const defaultModelSvc = ctx.get('agentDefaultModel')
-              if (defaultModelSvc !== undefined && takeoverPrev) await defaultModelSvc.saveSelection(takeoverPrev)
-              takeoverPrev = null
+            const defaultModelSvc = ctx.get('agentDefaultModel')
+            const sel = defaultModelSvc ? defaultModelSvc.currentSelection() : null
+            if (sel && sel.provider === ROUTE) {
+              const backup = (userConfig.takeoverBackup && typeof userConfig.takeoverBackup.provider === 'string') ? userConfig.takeoverBackup : takeoverPrev
+              if (defaultModelSvc !== undefined && backup) await defaultModelSvc.saveSelection(backup)
+              else await unsetInjectedDefault()
             }
+            takeoverDone = false
+            takeoverPrev = null
+            persistTakeoverState(false, null)
           } catch (e) { }
         } else if (p && p.autoTakeover === true) {
-          checkTakeover().catch(function () { })
+          // 显式打开开关 = 明确授权接管（可覆盖已有默认，原值已备份）
+          checkTakeover(true).catch(function () { })
         } else if (configFileOk) {
           // settings 模式由 scope.watch 联动；JSON 模式显式触发
           checkTakeover().catch(function () { })
