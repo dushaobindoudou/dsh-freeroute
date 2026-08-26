@@ -85,6 +85,37 @@ There is no sibling freeroute item in the settings nav (a standalone section
 appears only if the host ships no wrappable models entry). The `/freeproxy`
 command prints a text status.
 
+## Let other agents / tools use the pool (always auto)
+
+While `dsh web` runs, the plugin serves an **OpenAI-compatible endpoint** on the
+same port — any agent or tool that accepts a custom base URL can reuse the free
+pool:
+
+- **Base URL**: `http://127.0.0.1:<dsh web port>/freeroute/v1`
+  (default port 3080; the Free panel footer shows the exact URL)
+- **API key**: none needed (loopback only). Tools that demand a non-empty key
+  accept a placeholder like `sk-freeroute`
+- **Model**: set `auto`, or **omit it entirely** (auto is the default) — picks
+  enabled free upstreams by priority, fails over across the whole chain on
+  errors / rate limits / pre-first-token drops, and degrades single-model
+  requests to chain fallback automatically
+- **Capabilities**: `stream`, `tools` (function calling), `stop`,
+  `temperature`, `max_tokens` pass through; CORS is open for browser extensions
+- **Health**: `GET /freeroute/health`; **model list**:
+  `GET /freeroute/v1/models` (`auto` is the first entry)
+
+Minimal curl (no model field = auto):
+
+```sh
+curl http://127.0.0.1:3080/freeroute/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"messages":[{"role":"user","content":"hello"}]}'
+```
+
+Notes: the endpoint lives as long as the `dsh web` process (same machine);
+configure at least one upstream key in the Free panel so the auto chain has a
+usable node.
+
 ## Install
 
 ```sh
