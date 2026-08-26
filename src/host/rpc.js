@@ -43,7 +43,12 @@
     function validatePatch(p) {
       if (!p || typeof p !== 'object' || Array.isArray(p)) return 'patch 需为对象'
       for (const k of Object.keys(p)) {
-        if (k !== 'order' && k !== 'upstreams' && k !== 'catalog' && k !== 'autoTakeover') return '不允许的字段: ' + k
+        if (k !== 'order' && k !== 'upstreams' && k !== 'catalog' && k !== 'autoTakeover' && k !== 'proxy') return '不允许的字段: ' + k
+      }
+      // 全局代理：空串 = 清除（sanitize 会丢弃）；非空需 http(s):// 开头
+      if (p.proxy !== undefined) {
+        if (typeof p.proxy !== 'string' || p.proxy.length > 512) return 'proxy 需为字符串（≤512 字符）'
+        if (p.proxy.length > 0 && !/^https?:\/\//.test(p.proxy)) return 'proxy 无效（需 http(s):// 开头，留空清除）'
       }
       if (p.order !== undefined) {
         if (!Array.isArray(p.order)) return 'order 需为数组'

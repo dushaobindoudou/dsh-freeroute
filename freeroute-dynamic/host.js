@@ -1,4 +1,4 @@
-const VERSION = '0.7.4'
+const VERSION = '0.8.0'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
 const UA = 'deepseek-harness/0.1.0-rc.6 (+https://github.com/deepseek-ai/deepseek-harness)'
@@ -112,6 +112,9 @@ function sanitizeConfig(raw) {
   const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {}
   const out = { order: [], upstreams: {} }
   if (Array.isArray(src.order)) out.order = src.order.filter(function (x) { return typeof x === 'string' })
+  // 全局代理（默认不开启）：作用于所有未单独配置代理的上游（对话 + 模型探测）。
+  // 空串/非法值被丢弃 = 关闭；上游 custom.proxy 与目录 proxy 优先于全局。
+  if (typeof src.proxy === 'string' && /^https?:\/\//.test(src.proxy)) out.proxy = src.proxy.trim()
   if (src.upstreams && typeof src.upstreams === 'object') {
     for (const pair of Object.entries(src.upstreams)) {
       const k = pair[0]
@@ -395,6 +398,7 @@ return {
         if (cut > 0) { try { fsx.mkdirSync(configPath.slice(0, cut), { recursive: true }) } catch (e2) { } }
         const tmp = configPath + '.tmp'
         const payload = { order: userConfig.order || [], upstreams: userConfig.upstreams || {} }
+        if (userConfig.proxy !== undefined) payload.proxy = userConfig.proxy
         if (userConfig.autoTakeover !== undefined) payload.autoTakeover = userConfig.autoTakeover
         if (userConfig.autoInjected !== undefined) payload.autoInjected = userConfig.autoInjected
         if (userConfig.takeoverBackup !== undefined) payload.takeoverBackup = userConfig.takeoverBackup
@@ -495,6 +499,13 @@ return {
         if (!merged.defaultModel && merged.models && merged.models.length > 0) merged.defaultModel = merged.models[0].id
         if (!merged.baseUrl) continue
         map.set(id, merged)
+      }
+      // 全局代理兜底：上游未单独配置代理时回落到全局设置（默认无 = 直连）。
+      // 优先级：custom.proxy > 目录声明的 proxy > 全局 proxy。
+      if (userConfig.proxy) {
+        for (const up of Array.from(map.values())) {
+          if (!up.proxy) up.proxy = String(userConfig.proxy)
+        }
       }
       // 本地隐藏（removed 标记）优先于一切来源：同名内置/远程/自定义一并移除，
       // 远程同步永不写 userConfig，被删除的上游不会被同步复活。
@@ -1705,6 +1716,7 @@ return {
         persistence: settings !== undefined,
         autoTakeover: userConfig.autoTakeover !== false,
         autoInjected: injectedNow,
+        globalProxy: userConfig.proxy || '',
         catalog: {
           remoteUrl: (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL,
           autoRefreshMs: (userConfig.catalog && userConfig.catalog.autoRefreshMs) || 1800000,
@@ -1774,7 +1786,12 @@ return {
     function validatePatch(p) {
       if (!p || typeof p !== 'object' || Array.isArray(p)) return 'patch 需为对象'
       for (const k of Object.keys(p)) {
-        if (k !== 'order' && k !== 'upstreams' && k !== 'catalog' && k !== 'autoTakeover') return '不允许的字段: ' + k
+        if (k !== 'order' && k !== 'upstreams' && k !== 'catalog' && k !== 'autoTakeover' && k !== 'proxy') return '不允许的字段: ' + k
+      }
+      // 全局代理：空串 = 清除（sanitize 会丢弃）；非空需 http(s):// 开头
+      if (p.proxy !== undefined) {
+        if (typeof p.proxy !== 'string' || p.proxy.length > 512) return 'proxy 需为字符串（≤512 字符）'
+        if (p.proxy.length > 0 && !/^https?:\/\//.test(p.proxy)) return 'proxy 无效（需 http(s):// 开头，留空清除）'
       }
       if (p.order !== undefined) {
         if (!Array.isArray(p.order)) return 'order 需为数组'

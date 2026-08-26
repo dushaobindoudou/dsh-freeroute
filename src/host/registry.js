@@ -23,6 +23,7 @@
         if (cut > 0) { try { fsx.mkdirSync(configPath.slice(0, cut), { recursive: true }) } catch (e2) { } }
         const tmp = configPath + '.tmp'
         const payload = { order: userConfig.order || [], upstreams: userConfig.upstreams || {} }
+        if (userConfig.proxy !== undefined) payload.proxy = userConfig.proxy
         if (userConfig.autoTakeover !== undefined) payload.autoTakeover = userConfig.autoTakeover
         if (userConfig.autoInjected !== undefined) payload.autoInjected = userConfig.autoInjected
         if (userConfig.takeoverBackup !== undefined) payload.takeoverBackup = userConfig.takeoverBackup
@@ -123,6 +124,13 @@
         if (!merged.defaultModel && merged.models && merged.models.length > 0) merged.defaultModel = merged.models[0].id
         if (!merged.baseUrl) continue
         map.set(id, merged)
+      }
+      // 全局代理兜底：上游未单独配置代理时回落到全局设置（默认无 = 直连）。
+      // 优先级：custom.proxy > 目录声明的 proxy > 全局 proxy。
+      if (userConfig.proxy) {
+        for (const up of Array.from(map.values())) {
+          if (!up.proxy) up.proxy = String(userConfig.proxy)
+        }
       }
       // 本地隐藏（removed 标记）优先于一切来源：同名内置/远程/自定义一并移除，
       // 远程同步永不写 userConfig，被删除的上游不会被同步复活。

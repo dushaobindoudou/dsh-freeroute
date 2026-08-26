@@ -109,6 +109,7 @@
         persistence: settings !== undefined,
         autoTakeover: userConfig.autoTakeover !== false,
         autoInjected: injectedNow,
+        globalProxy: userConfig.proxy || '',
         catalog: {
           remoteUrl: (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL,
           autoRefreshMs: (userConfig.catalog && userConfig.catalog.autoRefreshMs) || 1800000,

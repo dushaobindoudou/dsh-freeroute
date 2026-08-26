@@ -6,6 +6,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- 全局代理支持（默认关闭）：`设置 → 模型 → 免费 → 高级设置` 新增代理卡片，
+  填一条 `http://127.0.0.1:7890` 型地址即让所有未单独配置代理的上游（对话
+  请求与模型探测）共用它；优先级：上游 `custom.proxy` > 目录声明的 proxy >
+  全局代理；远程目录同步始终直连。留空保存或「清除」按钮即回到直连。大陆
+  网络用户无需再逐个上游改 JSON 配代理。
+
 ### Fixed
 
 - 移除失效的 `postinstall` 软链脚本：npm 发布包的 `files` 白名单从未包含

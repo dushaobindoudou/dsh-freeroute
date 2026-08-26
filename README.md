@@ -55,6 +55,12 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    `api.json`, zero-cost models auto-filtered) → user patch persisted under
    the `free-proxy` settings namespace.
 5. **Local endpoint** — `http://127.0.0.1:<port>/freeroute/v1` is an
+6. **Global proxy (off by default)**: set one `http://127.0.0.1:7890`-style
+   proxy under `Settings → Models → Free → Advanced`; every upstream without
+   its own proxy (chat requests and model probing) goes through it. Per-upstream
+   `custom.proxy` and catalog-declared `proxy` win over the global one; catalog
+   sync always connects directly. One entry covers Clash/v2ray users — no
+   per-upstream configuration needed.
    OpenAI-compatible base URL (chat/completions with streaming, tools and
    usage; models; health). No API key required, CORS enabled — any other
    agent or client (CLI or browser) can ride the same free pool.

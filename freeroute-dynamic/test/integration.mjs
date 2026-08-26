@@ -961,6 +961,42 @@ section('16. 本地端点：无 Key + CORS + 工具调用（供其他 agent 复�
   check('清理 mock-rich', rm.ok === true)
 }
 
+section('16b. 全局代理：默认关闭 / 兜底生效 / 上游覆盖 / 清除')
+{
+  // a) 默认无全局代理：请求 argv 不含 --proxy
+  const before = spawnCalls.length
+  await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  const argvA = spawnCalls.slice(before).filter(function (a) { return a.some(function (x) { return String(x).indexOf('/chat/completions') >= 0 }) })[0] || []
+  check('默认（未设置）请求不带 --proxy', argvA.indexOf('--proxy') < 0, JSON.stringify(argvA.slice(-4)))
+  // b) 设置全局代理：无自有代理的上游自动带上
+  const rp = await rpc('freeroute.apply-patch', { patch: { proxy: 'http://127.0.0.1:7899' } })
+  check('apply-patch 接受顶层 proxy', rp.ok === true, JSON.stringify(rp))
+  const stG = await state()
+  check('state 暴露 globalProxy', stG.globalProxy === 'http://127.0.0.1:7899', String(stG.globalProxy))
+  const before2 = spawnCalls.length
+  await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  const argvB = spawnCalls.slice(before2).filter(function (a) { return a.some(function (x) { return String(x).indexOf('/chat/completions') >= 0 }) })[0] || []
+  const piB = argvB.indexOf('--proxy')
+  check('全局代理进入 curl argv 且在 URL 前', piB >= 0 && argvB[piB + 1] === 'http://127.0.0.1:7899', JSON.stringify(argvB.slice(-6)))
+  // c) 上游自有 proxy 优先于全局
+  await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-json': { custom: { proxy: 'http://127.0.0.1:7890' } } } } })
+  const before3 = spawnCalls.length
+  await collect(adapter.stream({ provider: 'freeroute', model: 'js-free', messages: msg('ping') }))
+  const argvC = spawnCalls.slice(before3).filter(function (a) { return a.some(function (x) { return String(x).indexOf('/chat/completions') >= 0 }) })[0] || []
+  const piC = argvC.indexOf('--proxy')
+  check('上游 custom.proxy 覆盖全局', piC >= 0 && argvC[piC + 1] === 'http://127.0.0.1:7890', JSON.stringify(argvC.slice(-6)))
+  // d) 持久化 + 校验：非法值被拒，空串清除
+  const disk = JSON.parse(readFileSync(CFG, 'utf8'))
+  check('proxy 落盘 JSON 配置', disk.proxy === 'http://127.0.0.1:7899', String(disk.proxy))
+  const bad = await rpc('freeroute.apply-patch', { patch: { proxy: 'socks5://x' } })
+  check('非法协议被拒', bad.ok === false && /proxy 无效/.test(bad.error), JSON.stringify(bad))
+  const clr = await rpc('freeroute.apply-patch', { patch: { proxy: '' } })
+  check('空串清除成功', clr.ok === true, JSON.stringify(clr))
+  check('清除后 state.globalProxy 为空', (await state()).globalProxy === '')
+  // 还原：上游 proxy 清掉，全局保持关闭
+  await rpc('freeroute.apply-patch', { patch: { upstreams: { 'mock-json': { custom: { proxy: '' } } } } })
+}
+
 for (const d of disposers) { try { d() } catch { /* ignore */ } }
 for (const s of Object.values(servers)) { s.close() }
 
