@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.3]
+
+### Fixed
+
+- 重试策略从 `mode: 'always'` 改为 `mode: 'normal'`（`maxRetries: 2`，显式
+  `retryableCodes: [EMPTY_RESPONSE, RATE_LIMIT, SERVER, TIMEOUT, TRANSPORT]`，
+  backoff 不变 1s→30s / jitter 0.2）。`always` 会无上限重试永久性失败：免费池
+  配额耗尽（QUOTA/AUTH）或未配置 Key（NO_UPSTREAM/MISSING_CREDENTIAL）时
+  freeroute 抛出的是不可能通过重试成功的错误码，`always` 模式令请求无限挂起
+  且错误永不 surfaced（冷却后每轮快速失败成 NO_UPSTREAM 仍被重试）。
+  `normal` 只重试瞬时错误，永久性错误立即上抛；freeroute 内部故障转移链
+  （换 Key → 换上游 → auto 兜底）继续承担跨候选恢复职责。
+
 ## [0.8.2]
 
 ### Added
