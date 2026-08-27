@@ -26,15 +26,20 @@ function __freerouteResolveLogPath () {
   const fs = __freerouteFs()
   const os = __freerouteOs()
   if (!fs || !os) return null
-  let base
-  if (typeof process === 'object' && process !== null && typeof process.env === 'object') {
+  // DSH_HOME 本身就是 .dsh 根目录（如 ~/.dsh），直接在其下建 freeroute/；
+  // 未设置时回退 homedir 并补 .dsh 段。此前无条件拼 '/.dsh/' 会在
+  // DSH_HOME=/Users/x/.dsh 时写出 /Users/x/.dsh/.dsh/freeroute/（双重路径）。
+  let base = null
+  let suffix = '/.dsh'
+  if (typeof process === 'object' && process !== null && typeof process.env === 'object' && process.env.DSH_HOME) {
     base = process.env.DSH_HOME
+    suffix = ''
   }
   if (!base) {
     try { base = os.homedir() } catch (e) { /* ignore */ }
   }
   if (!base) return null
-  __logPath = base + '/.dsh/' + LOG_DIR + '/' + LOG_NAME
+  __logPath = base + suffix + '/' + LOG_DIR + '/' + LOG_NAME
   return __logPath
 }
 

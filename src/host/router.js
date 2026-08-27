@@ -138,6 +138,9 @@
         }
         completed = true
         goodModel.set(upstream.id, model)
+        // 记录本次实际服务的上下文窗口：作为后续分层基准的粘性下限（根因 D）。
+        const servedWin = contextWindowOf({ upstream: upstream, model: model })
+        if (servedWin) lastServedWindow = servedWin
         recordSuccess(upstream.id, tr.usage, Date.now() - startedAt)
       } catch (e) {
         const err = (e instanceof Error) ? e : mkFail(emsg(e), 'UNKNOWN')
@@ -223,6 +226,65 @@
       return []
     }
 
+    // 候选的实际上下文窗口（未知返回 0）。
+    function contextWindowOf(cand) {
+      try {
+        for (const m of mergedModels(cand.upstream)) {
+          if (m.id === cand.model && m.contextWindow) return m.contextWindow
+        }
+      } catch (e) { }
+      return 0
+    }
+
+    // 最近一次成功服务的上下文窗口（粘性基准）。会话在大窗口上游上积累出
+    // 长上下文后，即便大窗上游临时冷却、首选换人，也不应让分层基准跌落——
+    // 否则下个请求又切回小窗上游，压缩风暴跨请求复发。任何一次在小窗上游
+    // 上的成功服务都会自然重置该值（小 → 大方向安全，无需干预）。
+    let lastServedWindow = 0
+
+    // 上下文窗口分层（压缩风暴根因 D）：基准 W = max(首选候选窗口, 粘性窗口)，
+    // 窗口 >= W（或未知）的候选保持原优先序在前，窗口 < W 的候选整体沉底。
+    // 动机：dsh 按上报窗口管理会话压缩，会话在大窗口上游上积累出较长上下文
+    // 后，若故障转移直接切到小窗口上游，剩余上下文放不下 → 每步触发压缩 →
+    // 压缩蒸发工作集 → 重读 → 再压缩（实测 71 分钟 82 次压缩、零净进展）。
+    // 分层后只有同窗/更大窗候选全部失败才会降级到小窗口候选；候选只是沉底
+    // 不是删除，全部大窗候选不可用时小窗候选仍按原顺序兜底。auto 上报窗口
+    // 取分层后链首的窗口，与实际可用候选一致且跨请求稳定。
+    let lastTierNote = ''
+    function tierByContextWindow(cands) {
+      if (cands.length < 2) return cands
+      const base = Math.max(contextWindowOf(cands[0]), lastServedWindow)
+      if (!base) return cands
+      const same = []
+      const smaller = []
+      for (const c of cands) {
+        const w = contextWindowOf(c)
+        if (!w || w >= base) same.push(c)
+        else smaller.push(c)
+      }
+      if (smaller.length === 0 || same.length === 0) return cands
+      // 只有真的发生重排（小窗候选原本排在大窗候选之前）才记日志，且签名
+      // 变化才记一次，避免每请求刷屏。
+      let seenSame = false
+      let changed = false
+      for (const c of cands) {
+        if (smaller.indexOf(c) >= 0) {
+          if (seenSame) { changed = true; break }
+        } else {
+          seenSame = true
+        }
+      }
+      if (changed) {
+        const note = smaller.map(function (c) { return c.upstream.id + '/' + c.model + '(' + contextWindowOf(c) + ')' }).join(', ')
+        const sig = base + '|' + note
+        if (sig !== lastTierNote) {
+          lastTierNote = sig
+          log('[freeroute] 候选链按上下文窗口分层：基准 ' + base + '，小窗候选沉底 → ' + note + '（同窗候选全部失败才会降级到它们）')
+        }
+      }
+      return same.concat(smaller)
+    }
+
     async function candidatesFor(model) {
       const enabled = orderedUpstreams().filter(function (u) { return isEnabled(u.id) })
       const keyed = []
@@ -230,7 +292,7 @@
       if (keyed.length === 0) return []
       const healthy = keyed.filter(function (u) { return !cooling(u.id) })
       const pool = healthy.length > 0 ? healthy : keyed.slice().sort(function (a, b) { return ((health.get(a.id) || {}).cooldownUntil || 0) - ((health.get(b.id) || {}).cooldownUntil || 0) })
-      return candidatesSync(pool, model)
+      return tierByContextWindow(candidatesSync(pool, model))
     }
 
     // auto 的上报上下文窗口（根因 A）：让 dsh 按候选链实际首选模型管理会话，

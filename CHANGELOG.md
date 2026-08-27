@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.4]
+
+### Fixed
+
+- 本地日志路径：`DSH_HOME` 已指向 `.dsh` 根目录（如 `~/.dsh`）时不再重复拼接，
+  修复日志写到 `~/.dsh/.dsh/freeroute/`（双重路径）的问题；现在写
+  `$DSH_HOME/freeroute/freeroute.log`，未设置 `DSH_HOME` 时仍回退
+  `~/.dsh/freeroute/freeroute.log`。
+
+### Added
+
+- 候选链按上下文窗口分层：基准 W = max(首选候选窗口, 最近一次成功服务的
+  窗口（粘性）)，窗口 >= W（或未知）的候选保持原优先序在前，窗口 < W 的
+  候选整体沉底，只有同窗/更大窗候选全部失败才降级到小窗口模型；候选只是
+  沉底不是删除，全部大窗候选不可用时小窗候选仍按原顺序兜底。粘性基准保证
+  大窗上游临时冷却、首选换人时基准不跌落（否则压缩风暴跨请求复发）；任何
+  在小窗上游上的成功服务都会自然重置粘性（小 → 大方向天然安全）。auto
+  上报窗口取分层后链首窗口，与实际可用候选一致且跨请求稳定。重排发生时记
+  一条日志（签名变化去重）。动机：会话在大窗口上游积累出长上下文后，故障
+  转移若直接切到小窗口上游，会触发「每步压缩 → 蒸发工作集 → 重读 → 再压缩」
+  的压缩风暴（实测某会话 71 分钟压缩 82 次、零净进展）。
+
 ## [0.8.3]
 
 ### Fixed
