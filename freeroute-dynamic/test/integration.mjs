@@ -48,6 +48,11 @@ const mkOk = () => (req, res) => sse(res, [
   j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 5, completion_tokens: 3 } }),
   'data: [DONE]\n\n'
 ])
+const mkText = (t) => (req, res) => sse(res, [
+  j({ choices: [{ delta: { content: t } }] }),
+  j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+  'data: [DONE]\n\n'
+])
 const mkRich = () => (req, res) => sse(res, [
   j({ choices: [{ delta: { reasoning_content: 'think ' } }] }),
   j({ choices: [{ delta: { reasoning_content: 'hard' } }] }),
@@ -1059,6 +1064,67 @@ section('19. resolveModel 上下文窗口 + 流超时参数（根因 A/C 回归�
   // 清理现场
   await rpc('freeroute.remove-upstream', { id: 'cw-big' })
   await rpc('freeroute.remove-upstream', { id: 'cw-small' })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
+section('20. 候选链上下文窗口分层（压缩风暴根因 D 回归）')
+{
+  // 上游按优先序：fail-big(131072, 502) → mid-small(32768, OK) → low-big(262144, OK)。
+  // 不分层时会切到 mid-small（32768），会话上下文若已按 131072 积累即触发压缩风暴；
+  // 分层后应跳过 mid-small 沉底，直接切到同窗的 low-big。
+  const portTierFail = await listen('tierFail', mkFail())
+  const portTierMid = await listen('tierMid', mkText('MID'))
+  const portTierLow = await listen('tierLow', mkText('LOW'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['tier-fail-big', 'tier-mid-small', 'tier-low-big'], upstreams: {
+    'tier-fail-big': { enabled: true, custom: { noAuth: true, baseUrl: b(portTierFail), models: [{ id: 'tbig', name: 'TB', contextWindow: 131072 }], defaultModel: 'tbig', freeModels: ['tbig'] } },
+    'tier-mid-small': { enabled: true, custom: { noAuth: true, baseUrl: b(portTierMid), models: [{ id: 'tmid', name: 'TM', contextWindow: 32768 }], defaultModel: 'tmid', freeModels: ['tmid'] } },
+    'tier-low-big': { enabled: true, custom: { noAuth: true, baseUrl: b(portTierLow), models: [{ id: 'tlow', name: 'TL', contextWindow: 262144 }], defaultModel: 'tlow', freeModels: ['tlow'] } }
+  } } })
+  const r1 = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('fail-big(131072) 失败后跳过 32768 小窗，切到 262144 大窗（LOW）', r1.text === 'LOW', JSON.stringify(r1.text))
+  const st1 = await state()
+  const mid = st1.upstreams.find((u) => u.id === 'tier-mid-small')
+  const low = st1.upstreams.find((u) => u.id === 'tier-low-big')
+  check('小窗候选未被调用（沉底而非删除）', (mid.stats.ok || 0) === 0 && (mid.stats.failed || 0) === 0, JSON.stringify(mid.stats))
+  check('大窗候选计 1 次成功', (low.stats.ok || 0) >= 1, JSON.stringify(low.stats))
+  // 第二次请求：fail-big 已冷却，优先序 head 本应轮到 mid-small(32768)——但
+  // 粘性基准（上次成功服务的 262144）保住了分层，mid-small 继续沉底，仍由
+  // low-big 服务；auto 上报窗口也稳定在 262144，dsh 不会误判而提前压缩。
+  const r2 = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('冷却后再次请求仍由同窗候选服务（LOW），基准不跌落', r2.text === 'LOW', JSON.stringify(r2.text))
+  const auto2 = await adapter.resolveModel('freeroute', 'auto')
+  check('auto 上报窗口跨请求稳定（262144）', auto2.context && auto2.context.contextWindow === 262144, JSON.stringify(auto2.context))
+  const st2 = await state()
+  const mid2 = st2.upstreams.find((u) => u.id === 'tier-mid-small')
+  check('小窗候选两次请求均未被调用', (mid2.stats.ok || 0) === 0 && (mid2.stats.failed || 0) === 0, JSON.stringify(mid2.stats))
+  await rpc('freeroute.remove-upstream', { id: 'tier-fail-big' })
+  await rpc('freeroute.remove-upstream', { id: 'tier-mid-small' })
+  await rpc('freeroute.remove-upstream', { id: 'tier-low-big' })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
+section('20b. 大窗候选全部不可用时小窗候选仍兜底（沉底不删除）')
+{
+  // 粘性基准来自 20 段（262144）：本段两个候选窗口都更小 → same 为空 → 不重排，
+  // 按原优先序走：big-fail(502) 失败后立即由 small 兜底成功——分层只影响顺序，
+  // 永不牺牲可用性。先禁用此前各段遗留的上游，保证池内只有本段两个候选。
+  const pre = await state()
+  const off = { upstreams: {} }
+  for (const u of pre.upstreams) off.upstreams[u.id] = { enabled: false }
+  await rpc('freeroute.apply-patch', { patch: off })
+  const portTierFail2 = await listen('tierFail2', mkFail())
+  const portTierSmall = await listen('tierSmall', mkText('SMALL'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['tier-bigfail2', 'tier-small2'], upstreams: {
+    'tier-bigfail2': { enabled: true, custom: { noAuth: true, baseUrl: b(portTierFail2), models: [{ id: 'bf2', name: 'BF', contextWindow: 131072 }], defaultModel: 'bf2', freeModels: ['bf2'] } },
+    'tier-small2': { enabled: true, custom: { noAuth: true, baseUrl: b(portTierSmall), models: [{ id: 'sm2', name: 'SM', contextWindow: 32768 }], defaultModel: 'sm2', freeModels: ['sm2'] } }
+  } } })
+  const r = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('大窗失败后小窗候选立即兜底（SMALL）', r.text === 'SMALL', JSON.stringify(r.text))
+  const st = await state()
+  const sm = st.upstreams.find((u) => u.id === 'tier-small2')
+  check('小窗兜底计 1 次成功', (sm.stats.ok || 0) >= 1, JSON.stringify(sm.stats))
+  await rpc('freeroute.remove-upstream', { id: 'tier-bigfail2' })
+  await rpc('freeroute.remove-upstream', { id: 'tier-small2' })
   await rpc('freeroute.apply-patch', { patch: { order: [] } })
 }
 
