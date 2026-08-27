@@ -1,4 +1,4 @@
-const VERSION = '0.8.2'
+const VERSION = '0.8.3'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
 const UA = 'deepseek-harness/0.1.0-rc.6 (+https://github.com/deepseek-ai/deepseek-harness)'
@@ -1458,10 +1458,19 @@ function log (message) {
       // 按 dsh 插件文档（@deepseek-ai/dsh-llm-retry）设置 per-provider 重试策略。
       // 适配器在 registerAdapter() 时通过 providerRetryPolicy(provider) 捕获一次，
       // 省略则退回 dsh-llm-retry 的 normal 默认（5 次、500ms→10s）。
-      // always mode：无次数上限地重试每个模型请求失败，直到成功/取消/插件 dispose。
+      // normal mode + 显式 retryableCodes：只重试瞬时错误。freeroute 内部已有
+      // 完整故障转移链（轮换 Key → 切上游 → auto 兜底），外层重试只需覆盖
+      // 「整条链瞬时抖动」（限流/超时/5xx/空响应），maxRetries 取 2 避免请求量
+      // 按候选数成倍放大。
+      // 注意不要用 always mode：免费池耗尽（QUOTA/AUTH）或未配置 Key
+      // （NO_UPSTREAM/MISSING_CREDENTIAL）时 freeroute 抛的是永久性错误码，
+      // always 会无上限地重试这些不可能成功的请求，且冷却后候选为空，
+      // 每轮快速失败成 NO_UPSTREAM 仍被无限重试，请求永远挂起且无报错 surfaced。
       providerRetryPolicy: function () {
         return {
-          mode: 'always',
+          mode: 'normal',
+          maxRetries: 2,
+          retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT'],
           backoff: { initialDelayMs: 1000, maxDelayMs: 30000, jitterRatio: 0.2 }
         }
       },
