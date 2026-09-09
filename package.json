@@ -1,6 +1,6 @@
 {
   "name": "dsh-freeroute",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Free-tier model aggregation for the DeepSeek Harness (dsh): registers the freeroute provider over a pool of free-quota upstreams (OpenCode Zen / B.AI / OpenRouter / SenseNova built in, plus remote catalogs and custom gateways), transparent failover before first token, multi-key rotation with per-key failure visibility, user-supplied API keys with per-upstream signup tutorials, a settings panel, and an OpenAI-compatible local endpoint.",
   "type": "module",
   "main": "./lib/index.js",
@@ -59,9 +59,13 @@
     }
   },
   "peerDependencies": {
+    "react": ">=18",
     "@deepseek-ai/dsh-typert-protocol": ">=0.1.0-rc.6 <0.2.0"
   },
   "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-typert-protocol": {
       "optional": false
     }
@@ -71,22 +75,8 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-typert-protocol": "0.1.2-rc.1",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.8.1"
-  },
-  "peerDependencies": {
-    "react": ">=18",
-    "@deepseek-ai/dsh-client-web-react": ">=0.1.0",
-    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0",
-    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0",
-    "@deepseek-ai/dsh-client-runtime": ">=0.1.0"
-  },
-  "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "@deepseek-ai/dsh-client-web-react": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-primitives": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-slots": { "optional": true },
-    "@deepseek-ai/dsh-client-runtime": { "optional": true }
   }
 }

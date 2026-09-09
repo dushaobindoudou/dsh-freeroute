@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.5]
+
+### Changed
+
+- 兼容 dsh 0.1.2-rc.1：移除 4 个已废弃的 client peerDependencies
+  （`@deepseek-ai/dsh-client-web-react` / `dsh-client-ui-primitives` /
+  `dsh-client-ui-slots` / `dsh-client-runtime`——旧版 client 栈包名，新版
+  dsh 运行时已由 `dsh-client-modules` / `dsh-cordis-client-runner` /
+  `dsh-client-ui-renderer` 取代，且本插件构建产物从未 import 它们，仅产生
+  安装告警并可能误导解析）。保留 `react`（optional，运行时基线模块）与
+  `@deepseek-ai/dsh-typert-protocol`（强制，Typert Remote RPC 契约）。
+- devDependency `@deepseek-ai/dsh-typert-protocol` 对齐宿主版本
+  `0.1.0-rc.6` → `0.1.2-rc.1`（运行时本就锚定宿主副本，此举让 smoke 测试
+  与线上 wire 协议同源）。
+
 ## [0.8.4]
 
 ### Fixed
