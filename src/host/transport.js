@@ -18,11 +18,20 @@
       return Array.isArray(content) ? content : []
     }
 
+    // 一张图片块 → 可发往上游的 URL。dsh 原生块携带 base64（data + mimeType），
+    // OpenAI 原生 image_url 部件则直接带 url（data: 或 https:）。两者都放行；
+    // 其余形态（file://、空块）返回 null 被静默丢弃而不是毒化请求。
+    function imagePartUrl(block) {
+      if (typeof block.url === 'string' && block.url.length > 0) return block.url
+      const mime = typeof block.mimeType === 'string' && block.mimeType.length > 0 ? block.mimeType : 'image/png'
+      if (typeof block.data === 'string' && block.data.length > 0) return 'data:' + mime + ';base64,' + block.data
+      return null
+    }
+
     function serializeMessages(messages) {
       const wire = []
       for (const m of messages || []) {
         const blocks = contentBlocks(m.content)
-        for (const b of blocks) { if (b && b.type === 'image') throw mkFail('FreeRoute 免费路由暂不支持图片内容', 'UNSUPPORTED_CONTENT') }
         if (m.role === 'system') { wire.push({ role: 'system', content: flattenText(blocks) }); continue }
         if (m.role === 'assistant') {
           const toolCalls = []
@@ -35,9 +44,31 @@
           continue
         }
         const toolResults = []
-        for (const b of blocks) { if (b && b.type === 'tool-result') toolResults.push(b) }
+        const imageUrls = []
+        for (const b of blocks) {
+          if (!b || typeof b !== 'object') continue
+          if (b.type === 'tool-result') { toolResults.push(b); continue }
+          if (b.type === 'image') {
+            const url = imagePartUrl(b)
+            if (url !== null) imageUrls.push(url)
+            continue
+          }
+          if (b.type === 'image_url' && b.image_url && typeof b.image_url.url === 'string') {
+            if (b.image_url.url.length > 0) imageUrls.push(b.image_url.url)
+          }
+        }
         const text = flattenText(blocks)
-        if (text.length > 0 || toolResults.length === 0) wire.push({ role: 'user', content: text })
+        if (imageUrls.length > 0) {
+          // 视觉上游走标准 OpenAI 多模态形态：text + image_url 部件。
+          // 不识别图片的模型会由上游以 4xx 明确拒绝，进入既有的
+          // wireError/熔断分类，而不是在这里全量禁图。
+          const parts = []
+          if (text.length > 0) parts.push({ type: 'text', text: text })
+          for (const url of imageUrls) parts.push({ type: 'image_url', image_url: { url: url } })
+          wire.push({ role: 'user', content: parts })
+        } else if (text.length > 0 || toolResults.length === 0) {
+          wire.push({ role: 'user', content: text })
+        }
         for (const r of toolResults) wire.push({ role: 'tool', tool_call_id: r.toolCallId, content: flattenText(r.content) || '(no output)' })
       }
       return wire

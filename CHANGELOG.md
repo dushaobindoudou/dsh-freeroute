@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.6]
+
+### Added
+
+- **图片（视觉）内容透传**：`transport.js` 不再对 `type:'image'` 块抛
+  `UNSUPPORTED_CONTENT` 硬错误。dsh 原生图片块（`data`+`mimeType` 或 `url`）
+  与 OpenAI 原生 `image_url` 部件统一归一化后，以标准多模态部件数组
+  （`[{type:'text',…},{type:'image_url',image_url:{url}}]`）发往上游；
+  纯图片消息不虚构 text 部件；无法解析的图片块（file://、空块）静默丢弃
+  而不是毒化整个请求。不识图的模型会由上游以 4xx 明确拒绝并进入既有的
+  wireError/熔断分类——把「是否支持视觉」交还给路由与模型本身。
+- smoke：新增出站请求体捕获，断言图片以 `image_url` 部件到达 mock 上游
+  （取代旧的「本地拒绝图片」断言）。
+
 ## [0.8.5]
 
 ### Changed

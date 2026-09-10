@@ -25,13 +25,22 @@ const mod = await import(join(here, '..', 'lib', 'index.js'))
 // ---------------------------------------------------------------- mock 上游
 const j = (o) => 'data: ' + JSON.stringify(o) + '\n\n'
 const sse = (res, chunks) => { res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const c of chunks) res.write(c); res.end() }
-const mkOk = () => (req, res) => sse(res, [
-  j({ choices: [{ delta: { content: 'Mock ' } }] }),
-  j({ choices: [{ delta: { content: 'reply ' } }] }),
-  j({ choices: [{ delta: { content: 'OK' } }] }),
-  j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 5, completion_tokens: 3 } }),
-  'data: [DONE]\n\n',
-])
+// 记录到达 mock 上游的请求体：图片透传用例据此断言出站多模态部件。
+const seenBodies = []
+const mkOk = () => (req, res) => {
+  let raw = ''
+  req.on('data', (c) => { raw += c })
+  req.on('end', () => {
+    try { seenBodies.push(JSON.parse(raw)) } catch { /* 非 JSON 忽略 */ }
+    sse(res, [
+      j({ choices: [{ delta: { content: 'Mock ' } }] }),
+      j({ choices: [{ delta: { content: 'reply ' } }] }),
+      j({ choices: [{ delta: { content: 'OK' } }] }),
+      j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 5, completion_tokens: 3 } }),
+      'data: [DONE]\n\n',
+    ])
+  })
+}
 const mkFail = () => (req, res) => { res.writeHead(502, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { message: 'mock upstream failure', type: 'server_error' } })) }
 
 const listen = async (handler) => {
@@ -266,12 +275,20 @@ const pc = await remote.applyPatch({ patch: { upstreams: { 'mock-c': { enabled: 
 assert.equal(pc.ok, true, '补一个必挂上游 mock-c')
 const r1c = await collect(adapter.stream({ provider: 'freeroute', model: 'mc', messages: msg('hi') }))
 assert.equal(r1c.text, 'Mock reply OK', '候选全挂时单模型降级 auto 成功')
-// c) 请求本身的问题（图片内容）换哪家也没用：不降级、原样报错
+// c) 图片内容按 OpenAI 多模态部件透传上游：不再本地拒绝，也不再是降级信号。
+//    不识图的模型由上游以 4xx 明确拒绝并进入既有 wireError/熔断分类。
 let imgErr = null
 try {
-  await collect(adapter.stream({ provider: 'freeroute', model: 'mc', messages: [{ id: 'm2', role: 'user', content: [{ type: 'image', url: 'x' }], source: { kind: 'user' } }] }))
+  await collect(adapter.stream({ provider: 'freeroute', model: 'mc', messages: [{ id: 'm2', role: 'user', content: [{ type: 'image', url: 'data:image/png;base64,aGVsbG8=' }], source: { kind: 'user' } }] }))
 } catch (e) { imgErr = e }
-assert.equal(String(imgErr && imgErr.code), 'UNSUPPORTED_CONTENT', '不支持的内容不触发降级')
+assert.equal(imgErr, null, '图片请求不再被本地拒绝，透传上游')
+const seen = seenBodies.find((sb) => JSON.stringify(sb).includes('image_url'))
+assert.ok(seen, '上游收到了 image_url 部件')
+const imgMsg = (seen.messages || []).find((um) => Array.isArray(um.content))
+assert.ok(imgMsg, '多模态消息以部件数组到达上游')
+assert.equal(imgMsg.content.length, 1, '纯图片消息不虚构 text 部件')
+assert.equal(imgMsg.content[0].type, 'image_url')
+assert.equal(imgMsg.content[0].image_url.url, 'data:image/png;base64,aGVsbG8=')
 
 console.log('■ 5. 删除上游')
 const rm = await remote.removeUpstream({ id: 'mock-b' })
