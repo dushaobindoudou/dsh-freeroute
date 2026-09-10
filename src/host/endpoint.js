@@ -40,6 +40,21 @@
         if (m.role === 'tool') {
           out.push({ role: 'user', content: [{ type: 'tool-result', toolCallId: m.tool_call_id || '', content: [{ type: 'text', text: strContent(m.content) || '(no output)' }] }] }); continue
         }
+        // OpenAI 多模态部件要转成 dsh 原生 image 块，交给 transport 出站。
+        // 只抽文本会在这里静默剥掉 image_url 部件（0.8.7 前的实际行为）：
+        // 模型只会「听说」有图，看不见像素。file:/ 空部件按既有约定丢弃。
+        if (Array.isArray(m.content)) {
+          const blocks = []
+          for (const p of m.content) {
+            if (p && p.type === 'text' && typeof p.text === 'string' && p.text.length > 0) { blocks.push({ type: 'text', text: p.text }); continue }
+            if (p && p.type === 'image_url' && p.image_url && typeof p.image_url.url === 'string' && p.image_url.url.length > 0) {
+              const dm = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(p.image_url.url)
+              if (dm !== null) { blocks.push({ type: 'image', mimeType: dm[1] || 'image/png', data: dm[3] }); continue }
+              if (/^https?:\/\//.test(p.image_url.url)) blocks.push({ type: 'image', url: p.image_url.url })
+            }
+          }
+          if (blocks.length > 0) { out.push({ role: 'user', content: blocks }); continue }
+        }
         out.push({ role: 'user', content: [{ type: 'text', text: strContent(m.content) }] })
       }
       return out

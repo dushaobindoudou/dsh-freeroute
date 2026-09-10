@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.7]
+
+### Fixed
+
+- **入站 OpenAI wire 多模态丢图**（0.8.6 修的是出站腿，本次补上入站腿）：
+  `inboundToInternal` 的 user 分支此前用 `strContent` 只抽文本——客户端以
+  OpenAI 多模态形态（`content:[{type:'text'},{type:'image_url',…}]`）发来的
+  图片部件在入站归一化时被**静默剥掉**，模型只会「听说」有图（实测三种
+  视觉模型全部回复「没有看到图片」）。现在 `image_url` 部件转成 dsh 原生
+  image 块（data URL → `data`+`mimeType`；http(s) → `url`），交由 0.8.6
+  已修好的 transport 出站腿透传；file:/ 空部件按既有约定静默丢弃；纯文本
+  入站（字符串 content）路径不回归。
+- smoke：升级伪 `webServer` 为捕获式，挂载真实 `routeHandler` 到本地端口，
+  新增「■ 4d 入站多模态」用例——OpenAI wire 带图请求必须以
+  `image_url` 部件到达 mock 上游（text+image 次序与内容逐字段断言），
+  并断言纯文本入站不回归。
+
 ## [0.8.6]
 
 ### Added
