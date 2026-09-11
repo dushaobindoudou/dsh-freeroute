@@ -66,6 +66,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `vision: true` 简写与 `/models` 探测四条路径。
 - smoke 与集成测试全绿（宿主 199 项 + 客户端 23 项 + smoke 全通过）。
 
+### 发布链
+
+- `package.json` 的 `repository` / `homepage` / `bugs` 由 `0xrushmoon/dsh-freeroute`
+  修正为 `dushaobindoudou/dsh-freeroute`（npm 账号与 tag 触发的发布工作流所在
+  仓库）。此前 provenance 校验按 `repository.url` 比对运行工作流的仓库，二者
+  不一致导致 `npm publish` 以 E422 失败；README 徽章、CONTRIBUTING 克隆地址、
+  discussions 链接、目录 `$schema` 与 OpenRouter 的 `http-referer` 同步对齐。
+
 ## [0.8.7]
 
 ### Fixed

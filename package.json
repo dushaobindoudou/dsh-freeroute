@@ -27,11 +27,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/0xrushmoon/dsh-freeroute.git"
+    "url": "git+https://github.com/dushaobindoudou/dsh-freeroute.git"
   },
-  "homepage": "https://github.com/0xrushmoon/dsh-freeroute",
+  "homepage": "https://github.com/dushaobindoudou/dsh-freeroute",
   "bugs": {
-    "url": "https://github.com/0xrushmoon/dsh-freeroute/issues"
+    "url": "https://github.com/dushaobindoudou/dsh-freeroute/issues"
   },
   "keywords": [
     "deepseek-harness",
