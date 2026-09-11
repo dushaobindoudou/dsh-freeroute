@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.16]
+
+### Changed
+
+- 行头内边距收紧 `8px 10px` → `8px`；卡片圆角 16px → 10px（与模型条目
+  一致，紧凑行观感更协调）；卡身水平内边距同步对齐 8px。
+
 ## [0.8.15]
 
 ### Fixed

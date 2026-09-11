@@ -1,4 +1,4 @@
-const CSS_VERSION = '0.8.15'
+const CSS_VERSION = '0.8.16'
 // 版本标记：sweepStaleStyles() 依此识别并清掉旧版本孤儿样式。
 const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
@@ -68,13 +68,13 @@ const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp-switchtext { font-size: 12px; color: var(--dsw-alias-label-secondary, inherit); }',
   // ---- 默认模型页同款行卡片（对齐 dsh-client-ui-settings-models 的 rowCard）----
   '.frp-cards { flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; display: flex; }',
-  '.frp-ucard { border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); border-radius: 16px; flex-direction: column; display: flex; }',
+  '.frp-ucard { border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); border-radius: 10px; flex-direction: column; display: flex; }',
   '.frp-ucard-open { border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',
-  '.frp-ucard-head { align-items: center; flex-direction: row; gap: 8px; min-width: 0; cursor: pointer; display: flex; flex-wrap: nowrap; padding: 8px 10px; }',
+  '.frp-ucard-head { align-items: center; flex-direction: row; gap: 8px; min-width: 0; cursor: pointer; display: flex; flex-wrap: nowrap; padding: 8px; }',
   '.frp-ucard-head:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, currentColor); outline-offset: 2px; border-radius: 6px; }',
   '.frp-ucard-text { align-items: center; flex-direction: row; gap: 6px; min-width: 0; display: inline-flex; flex-wrap: nowrap; }',
   '.frp-ucard-name { color: var(--dsw-alias-label-primary, inherit); font-size: 13px; font-weight: 500; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
-  '.frp-ucard-body { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); padding: 10px 10px 12px; }',
+  '.frp-ucard-body { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); padding: 10px 8px 12px; }',
   '.frp-fgroup { flex-direction: column; gap: 8px; display: flex; }',
   '.frp-fgroup + .frp-fgroup { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); margin-top: 2px; padding-top: 12px; }',
   '.frp-field { flex-direction: column; gap: 6px; display: flex; }',
