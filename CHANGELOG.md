@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.12]
+
+### Changed
+
+- **「免费」面板字号整体收一档**：行头名称 14→13px、模型 id 与供应商映射模型
+  13→12px、字段值 13→12px、高级设置分组标题 15→13px、面板头标题 16→14px。
+  卡片/网格/字段结构不变，仅回到紧凑排版。
+
 ## [0.8.11]
 
 ### Changed
