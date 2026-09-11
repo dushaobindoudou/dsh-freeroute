@@ -1,6 +1,7 @@
 const CSS = [
-  '.frp { display: flex; flex-direction: column; gap: 14px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
-  '.frp-card { background: var(--dsw-alias-bg-layer-1, transparent); border: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.25)); border-radius: 10px; padding: 12px 14px; }',
+  '.frp { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
+  '.frp-card { background: var(--dsw-alias-bg-layer-3, rgba(128,128,128,.06)); border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); border-radius: 16px; padding: 14px 16px; transition: border-color .16s, background .16s; }',
+  '.frp-card:hover { border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',
   '.frp-title { font-size: 15px; font-weight: 600; margin: 0 0 6px; }',
   '.frp-muted { color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); }',
   '.frp-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.08)); border-radius: 6px; padding: 2px 6px; word-break: break-all; }',
@@ -31,7 +32,6 @@ const CSS = [
   '.frp-models > div:last-child .frp-mrow, .frp-models > div:last-child .frp-mdetail { border-bottom: none; }',
   '.frp-mdetail { display: flex; flex-direction: column; gap: 5px; padding: 8px 2px 12px 13px; border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.12)); font-size: 12px; }',
   '.frp-mk { color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); display: inline-block; min-width: 52px; }',
-  '.frp-prow-solo:only-child { border-bottom: none; }',
   '.frp-keyrow { display: flex; gap: 8px; align-items: flex-start; }',
   '.frp-keyrow .frp-input { flex: 1; min-width: 0; width: auto; box-sizing: border-box; }',
   '.frp-keytoggle { flex: none; align-self: flex-start; margin-top: 1px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; padding: 0; }',
@@ -59,17 +59,25 @@ const CSS = [
   '.frp-switch input:focus-visible + .frp-slider { outline: 2px solid currentColor; outline-offset: 2px; }',
   '.frp-switch input:disabled + .frp-slider { opacity: .45; }',
   '.frp-switchtext { font-size: 12px; color: var(--dsw-alias-label-secondary, inherit); }',
-  '.frp-plist { padding: 2px 12px; }',
-  '.frp-prow { display: flex; align-items: center; gap: 9px; padding: 11px 2px; cursor: pointer; border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.15)); }',
-  '.frp-prow:hover { background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.06)); }',
-  '.frp-plist > div:last-child .frp-prow, .frp-plist > div:last-child .frp-pdetail { border-bottom: none; }',
-  '.frp-pname { font-weight: 500; white-space: nowrap; }',
+  // ---- 插件页同款可展开卡片（对齐 dsh-client-ui-settings-plugins 的 PluginCard）----
+  '.frp-cards { flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; display: flex; }',
+  '.frp-ucard { border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); background: var(--dsw-alias-bg-layer-3, rgba(128,128,128,.06)); border-radius: 16px; transition: border-color .16s, background .16s; }',
+  '.frp-ucard:hover { border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',
+  '.frp-ucard-open { background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.1)); border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',
+  '.frp-ucard-head { appearance: none; width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; background: 0 0; border: 0; border-radius: 12px; align-items: center; gap: 12px; padding: 14px 16px; display: flex; }',
+  '.frp-ucard-head:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, currentColor); outline-offset: -2px; }',
+  '.frp-ucard-text { flex-direction: column; flex: 1; gap: 4px; min-width: 0; display: flex; }',
+  '.frp-ucard-name { color: var(--dsw-alias-label-primary, inherit); font-size: 15px; font-weight: 600; line-height: 1.4; }',
+  '.frp-ucard-desc { color: var(--dsw-alias-label-tertiary, rgba(128,128,128,.9)); font-size: 13px; line-height: 1.5; word-break: break-word; }',
+  '.frp-ucard-body { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); margin: 0 16px; padding-bottom: 8px; }',
+  '.frp-fgroup { flex-direction: column; gap: 8px; padding: 12px 0; display: flex; }',
+  '.frp-fgroup + .frp-fgroup { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); }',
   '.frp-pctl { display: inline-flex; align-items: center; gap: 3px; flex: none; }',
   '.frp-iconbtn { padding: 2px 6px; line-height: 1; }',
   '.frp-pmeta { margin-left: auto; color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 12px; }',
-  ".frp-chev { color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); transition: transform .15s; flex: none; font-size: 14px; }",
-  '.frp-chev-open { transform: rotate(90deg); }',
-  '.frp-pdetail { display: flex; flex-direction: column; gap: 10px; padding: 8px 2px 14px 23px; border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.15)); }',
+  ".frp-chev { color: var(--dsw-alias-label-tertiary, rgba(128,128,128,.9)); transition: transform .16s; flex: none; font-size: 14px; transform: rotate(90deg); }",
+  '.frp-chev-open { transform: rotate(-90deg); }',
+  '.frp-pdetail { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 14px; }',
   '.frp-drow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }',
   '.frp-keyarea { flex: 1; min-width: 220px; width: auto; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }',
   '.frp-btn-ghost { border-color: transparent; color: var(--dsw-alias-label-secondary, inherit); }',
@@ -480,13 +488,23 @@ function Section(props) {
       metaBits.push(u.probedAt ? (tr('probed') + ' ' + new Date(u.probedAt).toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US')) : tr('notProbed'))
     }
     const kids = []
+    // 卡片头：名称 + 状态摘要上下两行（插件页 PluginCard 同款），点击整行展开；
+    // ↑/↓/启停开关是卡片头里的就地操作，stopPropagation 不触发展开。
     kids.push(React.createElement('div', {
-      key: 'row', className: 'frp-prow',
-      onClick: function () { setOpenId(open ? null : u.id) }
+      key: 'head', className: 'frp-ucard-head', role: 'button', tabIndex: 0,
+      'aria-expanded': open ? 'true' : 'false',
+      onClick: function () { setOpenId(open ? null : u.id) },
+      onKeyDown: function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setOpenId(open ? null : u.id)
+        }
+      }
     },
       React.createElement('span', { className: 'frp-dot ' + dotClass, key: 'dot', title: u.health.state }),
-      React.createElement('span', { className: 'frp-pname' + (u.enabled ? '' : ' frp-muted'), key: 'nm' }, u.name),
-      React.createElement('span', { className: 'frp-pmeta', key: 'meta' }, metaBits.join(' · ')),
+      React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
+        React.createElement('span', { className: 'frp-ucard-name' + (u.enabled ? '' : ' frp-muted'), key: 'nm' }, u.name),
+        React.createElement('span', { className: 'frp-ucard-desc', key: 'meta' }, metaBits.join(' · '))),
       React.createElement('span', { key: 'ctl', className: 'frp-pctl' },
         React.createElement('button', {
           key: 'up', className: 'frp-btn frp-btn-ghost frp-iconbtn', title: tr('moveUp'),
@@ -508,8 +526,8 @@ function Section(props) {
             disabled: busy === 'en-' + u.id,
             onChange: function (e) { act('freeroute.apply-patch', { patch: patchUpstream(u.id, { enabled: !!e.target.checked }) }, 'en-' + u.id) }
           }),
-          React.createElement('span', { className: 'frp-slider' })),
-        React.createElement('span', { className: 'frp-chev' + (open ? ' frp-chev-open' : ''), key: 'chev' }, '›'))))
+          React.createElement('span', { className: 'frp-slider' }))),
+      React.createElement('span', { className: 'frp-chev' + (open ? ' frp-chev-open' : ''), key: 'chev' }, '›')))
 
     if (open) {
       const dk = []
@@ -666,9 +684,10 @@ function Section(props) {
           }).join('\n')))
       }
 
-      kids.push(React.createElement('div', { className: 'frp-pdetail', key: 'detail' }, dk))
+      kids.push(React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
+        React.createElement('div', { className: 'frp-pdetail', key: 'detail' }, dk)))
     }
-    rows.push(React.createElement('div', { key: u.id }, kids))
+    rows.push(React.createElement('div', { key: u.id, className: 'frp-ucard' + (open ? ' frp-ucard-open' : '') }, kids))
   }
   // ---- 已隐藏上游（removed 标记）：一行汇总 + 逐家恢复 ----
   const hiddenList = Array.isArray(st.hiddenUpstreams) ? st.hiddenUpstreams : []
@@ -686,7 +705,7 @@ function Section(props) {
     })
     rows.push(React.createElement('div', { className: 'frp-hiddenrow', key: 'hidden' }, hk))
   }
-  self.push(React.createElement('div', { className: 'frp-card frp-plist', key: 'ups' }, rows))
+  self.push(React.createElement('div', { className: 'frp-cards', key: 'ups' }, rows))
 
   // 全局代理卡：输入框 + 保存/清除。留空保存 = 清除（回到直连）。
   // pxDraft/setPxDraft 声明在 panel-state.js 顶部（hook 规则：不可条件执行）。
@@ -724,7 +743,6 @@ function Section(props) {
   pxKids.push(React.createElement('div', { className: 'frp-form-row', key: 'row' }, pxRow))
   pxKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h1' }, tr('proxyHint1')))
   pxKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h2' }, tr('proxyHint2')))
-  const pxCard = React.createElement('div', { className: 'frp-card' }, pxKids)
 
   const catKids = []
   catKids.push(React.createElement('h3', { className: 'frp-title', key: 't' }, tr('catTitle')))
@@ -790,7 +808,6 @@ function Section(props) {
     tr('catHint4')))
   catKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h5' },
     tr('catHint5')))
-  const catCard = React.createElement('div', { className: 'frp-card' }, catKids)
   const plainModels = st.models.filter(function (m) { return m.id !== 'auto' })
   const upName = {}
   for (const u of st.upstreams) upName[u.id] = u.name || u.id
@@ -829,30 +846,40 @@ function Section(props) {
     }
     modelRows.push(React.createElement('div', { key: m.id }, rowKids))
   }
-  self.push(React.createElement('div', {
-    key: 'models', className: 'frp-card frp-plist',
-    onClick: function () { setModelsOpen(!modelsOpen) }
-  },
-    React.createElement('div', { className: 'frp-prow frp-prow-solo' },
-      React.createElement('span', { className: 'frp-pname' }, tr('modelsTitle')),
-      React.createElement('span', { className: 'frp-pmeta' }, plainModels.length + tr('countUnit')),
-      React.createElement('span', { className: 'frp-chev' + (modelsOpen ? ' frp-chev-open' : '') }, '›')),
-    modelsOpen ? React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows) : null))
-
-  // ---- 高级设置：远程目录 JSON（低频配置，折叠收纳）----
-  self.push(React.createElement('div', {
-    key: 'adv', className: 'frp-card frp-plist',
-    onClick: function () { setAdvOpen(!advOpen) }
-  },
-    React.createElement('div', { className: 'frp-prow frp-prow-solo' },
-      React.createElement('span', { className: 'frp-pname' }, tr('advancedTitle')),
-      React.createElement('span', { className: 'frp-pmeta' }, tr('remoteCatalog')),
-      React.createElement('span', { className: 'frp-chev' + (advOpen ? ' frp-chev-open' : '') }, '›'))))
-  if (advOpen) {
-    self.push(pxCard)
-    self.push(catCard)
+  // ---- 模型 / 高级设置：与上游同款可展开卡片（插件页 PluginCard 形态）----
+  const ucardHead = function (name, desc, isOpen, toggle) {
+    return React.createElement('div', {
+      className: 'frp-ucard-head', role: 'button', tabIndex: 0,
+      'aria-expanded': isOpen ? 'true' : 'false',
+      onClick: toggle,
+      onKeyDown: function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          toggle()
+        }
+      }
+    },
+      React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
+        React.createElement('span', { className: 'frp-ucard-name', key: 'nm' }, name),
+        React.createElement('span', { className: 'frp-ucard-desc', key: 'ds' }, desc)),
+      React.createElement('span', { className: 'frp-chev' + (isOpen ? ' frp-chev-open' : ''), key: 'chev' }, '›'))
   }
-  // ---- 高级设置：远程目录 / 自定义上游（低频配置，折叠收纳）----
+  self.push(React.createElement('div', {
+    key: 'models', className: 'frp-ucard' + (modelsOpen ? ' frp-ucard-open' : '')
+  },
+    ucardHead(tr('modelsTitle'), plainModels.length + tr('countUnit'), modelsOpen, function () { setModelsOpen(!modelsOpen) }),
+    modelsOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
+      React.createElement('div', { className: 'frp-fgroup', key: 'listwrap' },
+        React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows))) : null))
+
+  // ---- 高级设置：全局代理 / 远程目录（低频配置，折叠收纳为一张卡）----
+  self.push(React.createElement('div', {
+    key: 'adv', className: 'frp-ucard' + (advOpen ? ' frp-ucard-open' : '')
+  },
+    ucardHead(tr('advancedTitle'), tr('remoteCatalog'), advOpen, function () { setAdvOpen(!advOpen) }),
+    advOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
+      React.createElement('div', { className: 'frp-fgroup', key: 'px' }, pxKids),
+      React.createElement('div', { className: 'frp-fgroup', key: 'cat' }, catKids)) : null))
 
   return React.createElement('div', { className: 'frp' }, self)
 }

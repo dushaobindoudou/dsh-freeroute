@@ -36,29 +36,39 @@
     }
     modelRows.push(React.createElement('div', { key: m.id }, rowKids))
   }
-  self.push(React.createElement('div', {
-    key: 'models', className: 'frp-card frp-plist',
-    onClick: function () { setModelsOpen(!modelsOpen) }
-  },
-    React.createElement('div', { className: 'frp-prow frp-prow-solo' },
-      React.createElement('span', { className: 'frp-pname' }, tr('modelsTitle')),
-      React.createElement('span', { className: 'frp-pmeta' }, plainModels.length + tr('countUnit')),
-      React.createElement('span', { className: 'frp-chev' + (modelsOpen ? ' frp-chev-open' : '') }, '›')),
-    modelsOpen ? React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows) : null))
-
-  // ---- 高级设置：远程目录 JSON（低频配置，折叠收纳）----
-  self.push(React.createElement('div', {
-    key: 'adv', className: 'frp-card frp-plist',
-    onClick: function () { setAdvOpen(!advOpen) }
-  },
-    React.createElement('div', { className: 'frp-prow frp-prow-solo' },
-      React.createElement('span', { className: 'frp-pname' }, tr('advancedTitle')),
-      React.createElement('span', { className: 'frp-pmeta' }, tr('remoteCatalog')),
-      React.createElement('span', { className: 'frp-chev' + (advOpen ? ' frp-chev-open' : '') }, '›'))))
-  if (advOpen) {
-    self.push(pxCard)
-    self.push(catCard)
+  // ---- 模型 / 高级设置：与上游同款可展开卡片（插件页 PluginCard 形态）----
+  const ucardHead = function (name, desc, isOpen, toggle) {
+    return React.createElement('div', {
+      className: 'frp-ucard-head', role: 'button', tabIndex: 0,
+      'aria-expanded': isOpen ? 'true' : 'false',
+      onClick: toggle,
+      onKeyDown: function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          toggle()
+        }
+      }
+    },
+      React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
+        React.createElement('span', { className: 'frp-ucard-name', key: 'nm' }, name),
+        React.createElement('span', { className: 'frp-ucard-desc', key: 'ds' }, desc)),
+      React.createElement('span', { className: 'frp-chev' + (isOpen ? ' frp-chev-open' : ''), key: 'chev' }, '›'))
   }
-  // ---- 高级设置：远程目录 / 自定义上游（低频配置，折叠收纳）----
+  self.push(React.createElement('div', {
+    key: 'models', className: 'frp-ucard' + (modelsOpen ? ' frp-ucard-open' : '')
+  },
+    ucardHead(tr('modelsTitle'), plainModels.length + tr('countUnit'), modelsOpen, function () { setModelsOpen(!modelsOpen) }),
+    modelsOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
+      React.createElement('div', { className: 'frp-fgroup', key: 'listwrap' },
+        React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows))) : null))
+
+  // ---- 高级设置：全局代理 / 远程目录（低频配置，折叠收纳为一张卡）----
+  self.push(React.createElement('div', {
+    key: 'adv', className: 'frp-ucard' + (advOpen ? ' frp-ucard-open' : '')
+  },
+    ucardHead(tr('advancedTitle'), tr('remoteCatalog'), advOpen, function () { setAdvOpen(!advOpen) }),
+    advOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
+      React.createElement('div', { className: 'frp-fgroup', key: 'px' }, pxKids),
+      React.createElement('div', { className: 'frp-fgroup', key: 'cat' }, catKids)) : null))
 
   return React.createElement('div', { className: 'frp' }, self)

@@ -73,11 +73,12 @@ the intro (structure mirrors the Settings -> 插件 page: underline tabs, ARIA
 roles, arrow-key navigation, visited panels stay mounted):
 
 - **默认** keeps the stock model settings untouched;
-- **免费** hosts the full freeroute panel: per-upstream cards (enable /
-  priority / signup tutorial / key save / connectivity test / health & stats),
-  a one-click integration wizard, remote-catalog configuration, and a
-  custom-upstream form (works with local uni-api / new-api / LiteLLM gateways).
-  Non-standard gateways are supported in the config file via `custom.chatPath`
+- **免费** hosts the full freeroute panel in the same shape as the Plugins
+  settings page — one expandable card per upstream (header: name, status
+  summary, priority controls, enable toggle; click to expand keys /
+  connectivity test / model probe / signup links), with Models and Advanced
+  (global proxy + remote catalog) as cards of the same form. Non-standard
+  gateways are supported in the config file via `custom.chatPath`
   (override `/chat/completions`) and `custom.requestExtra` (extra scalar body
   fields; `model: null` omits the model field — e.g. GMI's `/autoroute`).
 

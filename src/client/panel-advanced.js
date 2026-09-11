@@ -34,7 +34,6 @@
   pxKids.push(React.createElement('div', { className: 'frp-form-row', key: 'row' }, pxRow))
   pxKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h1' }, tr('proxyHint1')))
   pxKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h2' }, tr('proxyHint2')))
-  const pxCard = React.createElement('div', { className: 'frp-card' }, pxKids)
 
   const catKids = []
   catKids.push(React.createElement('h3', { className: 'frp-title', key: 't' }, tr('catTitle')))
@@ -100,4 +99,3 @@
     tr('catHint4')))
   catKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h5' },
     tr('catHint5')))
-  const catCard = React.createElement('div', { className: 'frp-card' }, catKids)

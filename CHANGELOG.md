@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.10]
+
+### Changed
+
+- **「免费」面板重排为「设置 → 插件」页同款的可展开卡片**：每家上游一张卡——
+  卡片头（名称 15px/600 + 状态摘要 13px 上下两行 + ↑/↓ 优先级 + 启停开关 +
+  旋转 chevron）点击就地展开卡身（密钥/测试连通/探测模型/申请链接），「模型」
+  与「高级设置」（全局代理 + 远程目录）也是同款卡片；高级设置展开后是字段
+  分组而非嵌套卡。样式逐 token 对齐宿主 PluginCard（`.5px` 边框、圆角 16px、
+  bg-layer-3、hover 描边、开卡 bg-layer-2、chevron 旋转 180°），卡片间距 10px
+  与插件页一致。旧的单外框紧凑行列表（`frp-plist`/`frp-prow`）移除。
+- 可达性：卡片头 `role="button"` + `tabIndex` + `aria-expanded`，Enter/Space
+  就地展开；↑/↓/启停开关 `stopPropagation` 不触发展开。
+- 0.8.9 的「默认 | 免费」页签骨架保持（同样对齐插件页顶部结构：下划线页签、
+  aria 角色、方向键导航、访问过的面板保持挂载）。
+
+### Tests
+
+- client-integration 新增第 7 节（19 断言，总计 48 项）：带状态的 React 替身 +
+  完整 state 全量渲染面板——卡片栈/卡片头结构、点击与键盘展开、chevron 旋转、
+  卡身字段分组、隐藏恢复行；state 未到时形状守卫降级卡不炸设置槽。
+
 ## [0.8.9]
 
 ### Changed

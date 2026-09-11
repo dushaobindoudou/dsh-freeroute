@@ -212,6 +212,129 @@ section('6. 源码契约：页签结构就位')
   check('无反引号（动态沙箱包裹约束）', !body.includes('`'))
 }
 
+// ---------------------------------------------------------------- 7. 面板渲染
+// 「免费」面板全量渲染：带状态的 React 替身 + 完整 state，验证插件页同款
+// 可展开卡片（卡片头 名称+描述+chevron，点击/键盘就地展开）。
+function makeStatefulReact() {
+  const st = { slots: [], cursor: 0, effects: [] }
+  return {
+    st: st,
+    R: {
+      createElement: React.createElement,
+      useState: function (init) {
+        const i = st.cursor++
+        if (!(i in st.slots)) st.slots[i] = typeof init === 'function' ? init() : init
+        return [st.slots[i], function (v) { st.slots[i] = typeof v === 'function' ? v(st.slots[i]) : v }]
+      },
+      useRef: function (init) {
+        const i = st.cursor++
+        if (!(i in st.slots)) st.slots[i] = { current: init }
+        return st.slots[i]
+      },
+      useEffect: function (fn) { st.effects.push(fn) },
+      useCallback: function (fn) { return fn },
+      useId: function () { return 'frp-test' },
+      useSyncExternalStore: function (subscribe, snapshot) { return snapshot() }
+    },
+    begin: function () { st.cursor = 0; st.effects = [] }
+  }
+}
+
+const HOST_STATE = {
+  version: '0.8.10-test', route: 'freeroute',
+  endpoint: { base: 'http://127.0.0.1:3080/freeroute/v1' },
+  currentSelection: { provider: 'freeroute', model: 'auto' },
+  autoTakeover: true, autoInjected: false, globalProxy: '',
+  totals: { requests: 12, ok: 10, failed: 2, tokensIn: 100, tokensOut: 200 },
+  catalog: { remoteUrl: 'https://config.freetokenbox.com/freeroute.json', lastSyncAt: 1757000000000, lastCount: 10, lastFormat: 'native', lastSyncError: '' },
+  models: [
+    { id: 'auto', name: 'auto', contextWindow: 131072, via: [] },
+    { id: 'vision-1', name: 'Vision One', contextWindow: 131072, via: [{ upstream: 'mod-vision', model: 'vision-1' }] }
+  ],
+  upstreams: [
+    { id: 'mod-vision', name: 'Vision Up', priority: 0, enabled: true, configured: true, noAuth: false, keys: 2, modelsCount: 3, freeCount: 2, probedAt: 1757000000000,
+      health: { state: 'ok', cooldownMs: 0, lastError: '', keyFails: [] },
+      signupUrl: 'https://example.com/signup', tutorialUrl: '', tutorial: ['步骤一', '步骤二'] },
+    { id: 'plain-1', name: 'Plain Up', priority: 1, enabled: false, configured: false, noAuth: true, keys: 0, modelsCount: 1, freeCount: 1, probedAt: 0,
+      health: { state: 'cooling', cooldownMs: 30000, lastError: 'boom', keyFails: [{ index: 1, code: 401 }] },
+      signupUrl: '', tutorialUrl: '', tutorial: [] }
+  ],
+  hiddenUpstreams: [{ id: 'gone-1', name: 'Gone Up' }]
+}
+
+await (async function () {
+  section('7. 面板渲染：插件页同款可展开卡片')
+  {
+    const sr = makeStatefulReact()
+    const host2 = {
+      call: function (method) {
+        if (method === 'freeroute.state') return Promise.resolve(HOST_STATE)
+        return Promise.resolve({ ok: true })
+      }
+    }
+    const factory = new Function('React', 'styles', 'host', body)
+    const plugin = factory(sr.R, styles, host2)
+    const slots = makeSlots(null)
+    plugin.apply(makeCtx(slots))
+    const fb = slots.registrations.filter((r) => !r.disposed && r.options.id === 'freeroute-proxy')[0]
+    check('独立设置页承载 Section 面板', fb && typeof fb.component === 'function')
+
+    // 第一遍：state 未到，形状守卫降级为加载卡（不炸设置槽）
+    sr.begin()
+    const loading = fb.component()
+    check('state 未到时渲染守卫卡', loading && loading.props && loading.props.className === 'frp')
+
+    // 跑 effect → host.call('freeroute.state') → 微任务回填 → 重渲染
+    for (const fn of sr.st.effects) fn()
+    await Promise.resolve()
+    await Promise.resolve()
+    sr.begin()
+    const tree = fb.component()
+    check('面板根节点 frp', tree && tree.props.className === 'frp')
+
+    const kids = tree.children
+    check('头部状态块在最前', kids[0].props.className === 'frp-head')
+    const stack = kids[1]
+    check('上游列表是卡片栈 frp-cards', stack.props.className === 'frp-cards', stack.props.className)
+    const cards = stack.children
+    check('每家上游一张卡（2 家）+ 隐藏恢复行', cards.length === 3, String(cards.length))
+    const up0 = cards[0]
+    check('上游卡类名 frp-ucard（未展开）', up0.props.className === 'frp-ucard', up0.props.className)
+    const head0 = up0.children[0]
+    check('卡片头 role=button + aria-expanded=false + tabIndex', head0.props.className === 'frp-ucard-head' && head0.props.role === 'button' && head0.props['aria-expanded'] === 'false' && head0.props.tabIndex === 0)
+    check('卡片头：圆点 + 名称/摘要两行 + 操作 + chevron', head0.children.length === 4 && head0.children[0].props.className.indexOf('frp-dot') === 0 && head0.children[1].props.className === 'frp-ucard-text' && head0.children[1].children[0].children[0] === 'Vision Up' && String(head0.children[1].children[1].children[0]).indexOf('免费') >= 0 && head0.children[2].props.className === 'frp-pctl' && head0.children[3].props.className === 'frp-chev')
+    check('未展开不渲染卡身', up0.children.length === 1)
+    check('隐藏恢复行在卡片栈末尾', cards[2].props.className === 'frp-hiddenrow')
+
+    // 点击卡片头 → 展开 → 卡身就位（密钥/测试/探测）
+    head0.props.onClick()
+    sr.begin()
+    const tree2 = fb.component()
+    const up0b = tree2.children[1].children[0]
+    check('展开后卡类名 frp-ucard-open', up0b.props.className === 'frp-ucard frp-ucard-open', up0b.props.className)
+    check('aria-expanded 同步为 true', up0b.children[0].props['aria-expanded'] === 'true')
+    check('chevron 旋转态类名', up0b.children[0].children[3].props.className === 'frp-chev frp-chev-open')
+    check('卡身 frp-ucard-body 承载详情', up0b.children[1].props.className === 'frp-ucard-body' && up0b.children[1].children[0].props.className === 'frp-pdetail')
+
+    // 键盘可达：Enter 展开「模型」卡
+    const modelsCard = tree2.children[2]
+    check('模型卡同款形态', modelsCard.props.className === 'frp-ucard' && modelsCard.children[0].children[0].children[0].children[0] === '模型')
+    modelsCard.children[0].props.onKeyDown({ key: 'Enter', preventDefault: function () { } })
+    sr.begin()
+    const tree3 = fb.component()
+    const modelsCard3 = tree3.children[2]
+    check('键盘 Enter 展开模型卡', modelsCard3.props.className === 'frp-ucard frp-ucard-open' && modelsCard3.children[1].props.className === 'frp-ucard-body')
+
+    // 高级设置卡：展开后是字段分组（fgroup），非嵌套卡
+    tree3.children[3].children[0].props.onClick()
+    sr.begin()
+    const tree4 = fb.component()
+    const adv = tree4.children[3]
+    check('高级设置展开为字段分组', adv.children[1].props.className === 'frp-ucard-body' && adv.children[1].children[0].props.className === 'frp-fgroup' && adv.children[1].children[1].props.className === 'frp-fgroup')
+    check('面板收尾不再有独立 frp-card 块', tree4.children.every(function (k) { return k.props.className !== 'frp-card' }))
+  }
+})()
+
 console.log('\nclient-integration: ' + passed + ' passed, ' + failed + ' failed')
 if (failed > 0) { console.log('FAILURES:\n - ' + failures.join('\n - ')); process.exit(1) }
 console.log('ALL PASS')

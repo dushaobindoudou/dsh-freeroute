@@ -23,13 +23,23 @@
       metaBits.push(u.probedAt ? (tr('probed') + ' ' + new Date(u.probedAt).toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US')) : tr('notProbed'))
     }
     const kids = []
+    // 卡片头：名称 + 状态摘要上下两行（插件页 PluginCard 同款），点击整行展开；
+    // ↑/↓/启停开关是卡片头里的就地操作，stopPropagation 不触发展开。
     kids.push(React.createElement('div', {
-      key: 'row', className: 'frp-prow',
-      onClick: function () { setOpenId(open ? null : u.id) }
+      key: 'head', className: 'frp-ucard-head', role: 'button', tabIndex: 0,
+      'aria-expanded': open ? 'true' : 'false',
+      onClick: function () { setOpenId(open ? null : u.id) },
+      onKeyDown: function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setOpenId(open ? null : u.id)
+        }
+      }
     },
       React.createElement('span', { className: 'frp-dot ' + dotClass, key: 'dot', title: u.health.state }),
-      React.createElement('span', { className: 'frp-pname' + (u.enabled ? '' : ' frp-muted'), key: 'nm' }, u.name),
-      React.createElement('span', { className: 'frp-pmeta', key: 'meta' }, metaBits.join(' · ')),
+      React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
+        React.createElement('span', { className: 'frp-ucard-name' + (u.enabled ? '' : ' frp-muted'), key: 'nm' }, u.name),
+        React.createElement('span', { className: 'frp-ucard-desc', key: 'meta' }, metaBits.join(' · '))),
       React.createElement('span', { key: 'ctl', className: 'frp-pctl' },
         React.createElement('button', {
           key: 'up', className: 'frp-btn frp-btn-ghost frp-iconbtn', title: tr('moveUp'),
@@ -51,8 +61,8 @@
             disabled: busy === 'en-' + u.id,
             onChange: function (e) { act('freeroute.apply-patch', { patch: patchUpstream(u.id, { enabled: !!e.target.checked }) }, 'en-' + u.id) }
           }),
-          React.createElement('span', { className: 'frp-slider' })),
-        React.createElement('span', { className: 'frp-chev' + (open ? ' frp-chev-open' : ''), key: 'chev' }, '›'))))
+          React.createElement('span', { className: 'frp-slider' }))),
+      React.createElement('span', { className: 'frp-chev' + (open ? ' frp-chev-open' : ''), key: 'chev' }, '›')))
 
     if (open) {
       const dk = []
@@ -209,9 +219,10 @@
           }).join('\n')))
       }
 
-      kids.push(React.createElement('div', { className: 'frp-pdetail', key: 'detail' }, dk))
+      kids.push(React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
+        React.createElement('div', { className: 'frp-pdetail', key: 'detail' }, dk)))
     }
-    rows.push(React.createElement('div', { key: u.id }, kids))
+    rows.push(React.createElement('div', { key: u.id, className: 'frp-ucard' + (open ? ' frp-ucard-open' : '') }, kids))
   }
   // ---- 已隐藏上游（removed 标记）：一行汇总 + 逐家恢复 ----
   const hiddenList = Array.isArray(st.hiddenUpstreams) ? st.hiddenUpstreams : []
@@ -229,5 +240,5 @@
     })
     rows.push(React.createElement('div', { className: 'frp-hiddenrow', key: 'hidden' }, hk))
   }
-  self.push(React.createElement('div', { className: 'frp-card frp-plist', key: 'ups' }, rows))
+  self.push(React.createElement('div', { className: 'frp-cards', key: 'ups' }, rows))
 
