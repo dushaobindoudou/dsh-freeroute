@@ -6,35 +6,36 @@
     const m = plainModels[i]
     const via = Array.isArray(m.via) ? m.via : []
     const mOpen = openModel === m.id
-    const rowKids = []
-    rowKids.push(React.createElement('div', {
-      key: 'row', className: 'frp-mrow',
-      onClick: function () { setOpenModel(mOpen ? null : m.id) }
-    },
-      React.createElement('span', { className: 'frp-model-id', key: 'id' }, m.id),
-      React.createElement('span', { className: 'frp-muted frp-pmeta', key: 'meta' }, via.length + tr('providersUnit')),
-      React.createElement('span', { key: 'ctl', className: 'frp-pctl' },
-        React.createElement('button', {
-          key: 'dt', className: 'frp-btn frp-btn-ghost frp-iconbtn',
-          onClick: function (e) { e.stopPropagation(); setOpenModel(mOpen ? null : m.id) }
-        }, tr('detail')))))
-    if (mOpen) {
-      const viaRows = via.map(function (v, vi) {
-        return React.createElement('div', { key: 'v' + vi },
-          React.createElement('span', { className: 'frp-mk' }, vi === 0 ? tr('provider') : ''),
-          (upName[v.upstream] || v.upstream) + '（' + v.model + '）')
-      })
-      rowKids.push(React.createElement('div', { className: 'frp-mdetail', key: 'detail' },
-        React.createElement('div', { key: 'nm' },
-          React.createElement('span', { className: 'frp-mk' }, tr('modelName')), m.name && m.name !== m.id ? m.name : m.id),
-        React.createElement('div', { key: 'ctx' },
-          React.createElement('span', { className: 'frp-mk' }, tr('contextWindow')), m.contextWindow ? (String(m.contextWindow) + ' tokens') : tr('unknown')),
-        viaRows.length > 0
-          ? React.createElement('div', { key: 'via', style: { display: 'flex', flexDirection: 'column', gap: '5px' } }, viaRows)
-          : React.createElement('div', { key: 'via-none' },
-              React.createElement('span', { className: 'frp-mk' }, tr('provider')), tr('unknown'))))
-    }
-    modelRows.push(React.createElement('div', { key: m.id }, rowKids))
+    // 条目 = 默认模型页 modelEntry 形态：小边框盒 + 网格行（等宽 id | 名称·上下文 | chevron），
+    // 点击展开「供应商」字段行列出各家上游与实际映射模型。
+    const metaBits = []
+    if (m.name && m.name !== m.id) metaBits.push(m.name)
+    metaBits.push(m.contextWindow ? (String(m.contextWindow) + ' tokens') : tr('unknown'))
+    modelRows.push(React.createElement('div', { key: m.id, className: 'frp-mentry' },
+      React.createElement('div', {
+        className: 'frp-mrow2', role: 'button', tabIndex: 0,
+        'aria-expanded': mOpen ? 'true' : 'false',
+        onClick: function () { setOpenModel(mOpen ? null : m.id) },
+        onKeyDown: function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setOpenModel(mOpen ? null : m.id)
+          }
+        }
+      },
+        React.createElement('span', { className: 'frp-mid', key: 'id' }, m.id),
+        React.createElement('span', { className: 'frp-mmeta', key: 'meta' }, metaBits.join(' · ')),
+        React.createElement('span', { className: 'frp-chev' + (mOpen ? ' frp-chev-open' : ''), key: 'chev' }, '›')),
+      mOpen ? React.createElement('div', { className: 'frp-mbody', key: 'detail' },
+        React.createElement('div', { className: 'frp-field', key: 'via' },
+          React.createElement('span', { className: 'frp-fieldlabel', key: 'l' }, tr('provider')),
+          via.length > 0
+            ? React.createElement('div', { className: 'frp-vialist', key: 'vl' }, via.map(function (v, vi) {
+              return React.createElement('div', { key: 'v' + vi, className: 'frp-viarow' },
+                React.createElement('span', { className: 'frp-vianame', key: 'n' }, upName[v.upstream] || v.upstream),
+                React.createElement('span', { className: 'frp-mid', key: 'm' }, v.model))
+            }))
+            : React.createElement('span', { className: 'frp-fieldval', key: 'none' }, tr('unknown')))) : null))
   }
   // ---- 模型 / 高级设置：与上游同款可展开卡片（插件页 PluginCard 形态）----
   const ucardHead = function (name, desc, isOpen, toggle) {
@@ -51,7 +52,7 @@
     },
       React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
         React.createElement('span', { className: 'frp-ucard-name', key: 'nm' }, name),
-        React.createElement('span', { className: 'frp-ucard-desc', key: 'ds' }, desc)),
+        React.createElement('span', { className: 'frp-tag', key: 'ds' }, desc)),
       React.createElement('span', { className: 'frp-chev' + (isOpen ? ' frp-chev-open' : ''), key: 'chev' }, '›'))
   }
   self.push(React.createElement('div', {
@@ -59,8 +60,7 @@
   },
     ucardHead(tr('modelsTitle'), plainModels.length + tr('countUnit'), modelsOpen, function () { setModelsOpen(!modelsOpen) }),
     modelsOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
-      React.createElement('div', { className: 'frp-fgroup', key: 'listwrap' },
-        React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows))) : null))
+      React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows)) : null))
 
   // ---- 高级设置：全局代理 / 远程目录（低频配置，折叠收纳为一张卡）----
   self.push(React.createElement('div', {

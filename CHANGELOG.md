@@ -4,6 +4,27 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.11]
+
+### Changed
+
+- **「免费」面板列表形态对齐「设置 → 模型」页（默认模型列表）**：
+  - 上游卡片改为宿主 rowCard 形态——透明底、`.5px` 边框、圆角 16px、内边距
+    12px 14px；行头内联一行：状态圆点 + 名称（14px/500）+ Key 状态小标签
+    （rowTag 同款）+ ↑/↓ + 启停开关 + 旋转 chevron；完整状态摘要（免费模型
+    占比 / 冷却 / 上次探测）挪进卡身「运行状态」字段行，行头不再换行拥挤。
+  - 「模型」卡条目改为宿主 modelEntry 形态——小边框盒 + 网格行
+    （等宽字体模型 id | 名称 · 上下文 | chevron），点击展开「供应商」字段行，
+    逐行列出上游名 + 实际映射模型（等宽字体），替代原先名称/上下文/供应商
+    三行混排的紧凑行列表。
+  - 卡片栈间距对齐模型页 rows（8px）；`.frp-tag` 对齐 rowTag token。
+
+### Tests
+
+- client-integration 第 7 节更新并新增断言（总计 51 项）：行头 Key 标签、
+  运行状态字段行、modelEntry 网格行（role=button + aria-expanded）、
+  供应商 vialist/viarow（上游名 + 映射模型）。
+
 ## [0.8.10]
 
 ### Changed

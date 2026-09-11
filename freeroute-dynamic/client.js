@@ -12,7 +12,7 @@ const CSS = [
   '.frp-dot-degraded { background: var(--dsw-alias-state-warn-primary, #fbbf24); }',
   '.frp-dot-off { background: var(--dsw-alias-border-l2, rgba(128,128,128,.5)); }',
   '.frp-name { font-weight: 600; font-size: 13.5px; }',
-  '.frp-tag { font-size: 11px; border: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.3)); border-radius: 5px; padding: 0 6px; color: var(--dsw-alias-label-secondary, inherit); }',
+  '.frp-tag { border: .5px solid var(--dsw-alias-border-l3, rgba(128,128,128,.35)); color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); border-radius: 4px; flex: none; padding: 1px 6px; font-size: 11px; line-height: 16px; white-space: nowrap; }',
   '.frp-btn { font: inherit; font-size: 12px; border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.4)); background: transparent; color: inherit; border-radius: 7px; padding: 3px 10px; cursor: pointer; }',
   '.frp-btn:hover { background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.1)); }',
   '.frp-btn:disabled { opacity: .45; cursor: default; }',
@@ -26,12 +26,18 @@ const CSS = [
   '.frp-err { color: var(--dsw-alias-state-error-primary, #f87171); font-size: 12px; white-space: pre-wrap; word-break: break-all; }',
   '.frp-warn { color: var(--dsw-alias-state-warn-primary, #fbbf24); font-size: 12px; white-space: pre-wrap; word-break: break-all; }',
   '.frp-ok { color: var(--dsw-alias-state-success-primary, #34d399); font-size: 12px; }',
-  '.frp-models { display: flex; flex-direction: column; max-height: 300px; overflow: auto; }',
-  '.frp-mrow { display: flex; align-items: center; gap: 9px; padding: 8px 2px; cursor: pointer; border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.12)); white-space: nowrap; overflow: hidden; }',
-  '.frp-mrow:hover { background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.06)); }',
-  '.frp-models > div:last-child .frp-mrow, .frp-models > div:last-child .frp-mdetail { border-bottom: none; }',
-  '.frp-mdetail { display: flex; flex-direction: column; gap: 5px; padding: 8px 2px 12px 13px; border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.12)); font-size: 12px; }',
-  '.frp-mk { color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); display: inline-block; min-width: 52px; }',
+  // ---- 默认模型页同款：模型目录条目（modelEntry + modelRow 网格）----
+  '.frp-models { flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; display: flex; }',
+  '.frp-mentry { border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); border-radius: 10px; padding: 6px; }',
+  '.frp-mrow2 { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; align-items: center; gap: 6px; cursor: pointer; display: grid; }',
+  '.frp-mrow2:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, currentColor); outline-offset: 2px; border-radius: 6px; }',
+  '.frp-mid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }',
+  '.frp-mmeta { color: var(--dsw-alias-label-tertiary, rgba(128,128,128,.9)); font-size: 12px; line-height: 18px; text-align: right; }',
+  '.frp-mbody { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 8px; display: flex; }',
+  '.frp-vialist { flex-direction: column; gap: 2px; display: flex; }',
+  '.frp-viarow { align-items: center; gap: 8px; border-radius: 6px; padding: 6px 8px; display: flex; }',
+  '.frp-viarow:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(128,128,128,.08)); }',
+  '.frp-vianame { color: var(--dsw-alias-label-primary, inherit); font-size: 13px; flex: none; }',
   '.frp-keyrow { display: flex; gap: 8px; align-items: flex-start; }',
   '.frp-keyrow .frp-input { flex: 1; min-width: 0; width: auto; box-sizing: border-box; }',
   '.frp-keytoggle { flex: none; align-self: flex-start; margin-top: 1px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; padding: 0; }',
@@ -41,7 +47,6 @@ const CSS = [
   '.frp-hiddenrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 2px 12px; font-size: 12px; }',
   '.frp-hiddenchip { font-size: 12px; }',
   '.frp-pre { margin: 0; padding: 8px 10px; border-radius: 7px; background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.08)); border: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.2)); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.6; overflow: auto; }',
-  '.frp-model-id { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }',
   // ---- 原生风格：头部 / 开关 / 供应商列表（点击展开）----
   '.frp-head { display: flex; flex-direction: column; gap: 4px; }',
   '.frp-headrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }',
@@ -59,25 +64,25 @@ const CSS = [
   '.frp-switch input:focus-visible + .frp-slider { outline: 2px solid currentColor; outline-offset: 2px; }',
   '.frp-switch input:disabled + .frp-slider { opacity: .45; }',
   '.frp-switchtext { font-size: 12px; color: var(--dsw-alias-label-secondary, inherit); }',
-  // ---- 插件页同款可展开卡片（对齐 dsh-client-ui-settings-plugins 的 PluginCard）----
-  '.frp-cards { flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; display: flex; }',
-  '.frp-ucard { border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); background: var(--dsw-alias-bg-layer-3, rgba(128,128,128,.06)); border-radius: 16px; transition: border-color .16s, background .16s; }',
-  '.frp-ucard:hover { border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',
-  '.frp-ucard-open { background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.1)); border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',
-  '.frp-ucard-head { appearance: none; width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; background: 0 0; border: 0; border-radius: 12px; align-items: center; gap: 12px; padding: 14px 16px; display: flex; }',
-  '.frp-ucard-head:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, currentColor); outline-offset: -2px; }',
-  '.frp-ucard-text { flex-direction: column; flex: 1; gap: 4px; min-width: 0; display: flex; }',
-  '.frp-ucard-name { color: var(--dsw-alias-label-primary, inherit); font-size: 15px; font-weight: 600; line-height: 1.4; }',
-  '.frp-ucard-desc { color: var(--dsw-alias-label-tertiary, rgba(128,128,128,.9)); font-size: 13px; line-height: 1.5; word-break: break-word; }',
-  '.frp-ucard-body { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); margin: 0 16px; padding-bottom: 8px; }',
-  '.frp-fgroup { flex-direction: column; gap: 8px; padding: 12px 0; display: flex; }',
-  '.frp-fgroup + .frp-fgroup { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); }',
+  // ---- 默认模型页同款行卡片（对齐 dsh-client-ui-settings-models 的 rowCard）----
+  '.frp-cards { flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; display: flex; }',
+  '.frp-ucard { border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); border-radius: 16px; flex-direction: column; gap: 12px; padding: 12px 14px; display: flex; }',
+  '.frp-ucard-open { border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',
+  '.frp-ucard-head { align-items: center; gap: 10px; min-width: 0; cursor: pointer; display: flex; }',
+  '.frp-ucard-head:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, currentColor); outline-offset: 2px; border-radius: 6px; }',
+  '.frp-ucard-text { align-items: center; gap: 6px; min-width: 0; flex: 1; display: inline-flex; }',
+  '.frp-ucard-name { color: var(--dsw-alias-label-primary, inherit); font-size: 14px; font-weight: 500; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+  '.frp-ucard-body { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); padding-top: 12px; }',
+  '.frp-fgroup { flex-direction: column; gap: 8px; display: flex; }',
+  '.frp-fgroup + .frp-fgroup { border-top: .5px solid var(--dsw-alias-border-l2, rgba(128,128,128,.25)); margin-top: 2px; padding-top: 12px; }',
+  '.frp-field { flex-direction: column; gap: 6px; display: flex; }',
+  '.frp-fieldlabel { color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); font-size: 12px; font-weight: 500; line-height: 18px; }',
+  '.frp-fieldval { color: var(--dsw-alias-label-primary, inherit); font-size: 13px; line-height: 20px; word-break: break-word; }',
   '.frp-pctl { display: inline-flex; align-items: center; gap: 3px; flex: none; }',
   '.frp-iconbtn { padding: 2px 6px; line-height: 1; }',
-  '.frp-pmeta { margin-left: auto; color: var(--dsw-alias-label-secondary, rgba(128,128,128,.9)); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 12px; }',
   ".frp-chev { color: var(--dsw-alias-label-tertiary, rgba(128,128,128,.9)); transition: transform .16s; flex: none; font-size: 14px; transform: rotate(90deg); }",
   '.frp-chev-open { transform: rotate(-90deg); }',
-  '.frp-pdetail { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 14px; }',
+  '.frp-pdetail { display: flex; flex-direction: column; gap: 12px; }',
   '.frp-drow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }',
   '.frp-keyarea { flex: 1; min-width: 220px; width: auto; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }',
   '.frp-btn-ghost { border-color: transparent; color: var(--dsw-alias-label-secondary, inherit); }',
@@ -132,6 +137,7 @@ const STRINGS = {
     degraded: '状态不佳',
     probed: '探测',
     notProbed: '未探测',
+    stateLabel: '运行状态',
     moveUp: '上移',
     moveDown: '下移',
     enableTitle: '启用 / 停用该上游',
@@ -221,6 +227,7 @@ const STRINGS = {
     degraded: 'Degraded',
     probed: 'Probed',
     notProbed: 'Not probed',
+    stateLabel: 'Status',
     moveUp: 'Move up',
     moveDown: 'Move down',
     enableTitle: 'Enable / disable this upstream',
@@ -474,22 +481,25 @@ function Section(props) {
         : (u.health.state === 'degraded' ? 'frp-dot-degraded' : (u.configured || u.noAuth ? 'frp-dot-up' : 'frp-dot-off')))
     const draftKey = 'draft-' + u.id
     const testInfo = tests[u.id]
-    const metaBits = []
-    if (!u.enabled) {
-      metaBits.push(tr('disabled'))
-    } else {
-      metaBits.push(tr('freeModels') + ' ' + (u.freeCount || 0) + '/' + (u.modelsCount || 0))
-      if (u.noAuth) metaBits.push(tr('noAuth'))
-      else if (u.keys > 1) metaBits.push(tr('keyX') + u.keys)
-      else if (u.configured) metaBits.push(tr('keyConfigured'))
-      else metaBits.push(tr('keyNeeded'))
-      if (u.health.state === 'cooling') metaBits.push(tr('cooling') + ' ' + Math.ceil(u.health.cooldownMs / 1000) + tr('coolingUnit'))
-      else if (u.health.state === 'degraded') metaBits.push(tr('degraded'))
-      metaBits.push(u.probedAt ? (tr('probed') + ' ' + new Date(u.probedAt).toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US')) : tr('notProbed'))
+    // 行头只留一枚 Key 状态小标签（默认模型页 rowTag 形态）；完整状态摘要
+    // 挪进卡身「运行状态」字段行，避免行头换行拥挤。
+    const headTag = !u.enabled
+      ? tr('disabled')
+      : (u.noAuth
+        ? tr('noAuth')
+        : (u.keys > 1
+          ? tr('keyX') + u.keys
+          : (u.configured ? tr('keyConfigured') : tr('keyNeeded'))))
+    const detailBits = []
+    if (u.enabled) {
+      detailBits.push(tr('freeModels') + ' ' + (u.freeCount || 0) + '/' + (u.modelsCount || 0))
+      if (u.health.state === 'cooling') detailBits.push(tr('cooling') + ' ' + Math.ceil(u.health.cooldownMs / 1000) + tr('coolingUnit'))
+      else if (u.health.state === 'degraded') detailBits.push(tr('degraded'))
+      detailBits.push(u.probedAt ? (tr('probed') + ' ' + new Date(u.probedAt).toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US')) : tr('notProbed'))
     }
     const kids = []
-    // 卡片头：名称 + 状态摘要上下两行（插件页 PluginCard 同款），点击整行展开；
-    // ↑/↓/启停开关是卡片头里的就地操作，stopPropagation 不触发展开。
+    // 卡片头：圆点 + 名称 + 状态标签 + 操作 内联一行（默认模型页 rowHead 同款），
+    // 点击整行展开；↑/↓/启停开关就地操作，stopPropagation 不触发展开。
     kids.push(React.createElement('div', {
       key: 'head', className: 'frp-ucard-head', role: 'button', tabIndex: 0,
       'aria-expanded': open ? 'true' : 'false',
@@ -504,7 +514,7 @@ function Section(props) {
       React.createElement('span', { className: 'frp-dot ' + dotClass, key: 'dot', title: u.health.state }),
       React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
         React.createElement('span', { className: 'frp-ucard-name' + (u.enabled ? '' : ' frp-muted'), key: 'nm' }, u.name),
-        React.createElement('span', { className: 'frp-ucard-desc', key: 'meta' }, metaBits.join(' · '))),
+        React.createElement('span', { className: 'frp-tag', key: 'tag' }, headTag)),
       React.createElement('span', { key: 'ctl', className: 'frp-pctl' },
         React.createElement('button', {
           key: 'up', className: 'frp-btn frp-btn-ghost frp-iconbtn', title: tr('moveUp'),
@@ -531,6 +541,13 @@ function Section(props) {
 
     if (open) {
       const dk = []
+
+      // 运行状态字段行（默认模型页 field 形态）：免费模型占比 / 冷却 / 上次探测
+      if (detailBits.length > 0) {
+        dk.push(React.createElement('div', { className: 'frp-field', key: 'stat' },
+          React.createElement('span', { className: 'frp-fieldlabel', key: 'l' }, tr('stateLabel')),
+          React.createElement('div', { className: 'frp-fieldval', key: 'v' }, detailBits.join(' · '))))
+      }
 
       // 密钥显示/隐藏：隐藏态 = span 内 14 个星号（已配置时）；显示态 =
       // 多行输入框（一行一把，可编辑保存）。未配置时无需掩码，直接多行输入。
@@ -816,35 +833,36 @@ function Section(props) {
     const m = plainModels[i]
     const via = Array.isArray(m.via) ? m.via : []
     const mOpen = openModel === m.id
-    const rowKids = []
-    rowKids.push(React.createElement('div', {
-      key: 'row', className: 'frp-mrow',
-      onClick: function () { setOpenModel(mOpen ? null : m.id) }
-    },
-      React.createElement('span', { className: 'frp-model-id', key: 'id' }, m.id),
-      React.createElement('span', { className: 'frp-muted frp-pmeta', key: 'meta' }, via.length + tr('providersUnit')),
-      React.createElement('span', { key: 'ctl', className: 'frp-pctl' },
-        React.createElement('button', {
-          key: 'dt', className: 'frp-btn frp-btn-ghost frp-iconbtn',
-          onClick: function (e) { e.stopPropagation(); setOpenModel(mOpen ? null : m.id) }
-        }, tr('detail')))))
-    if (mOpen) {
-      const viaRows = via.map(function (v, vi) {
-        return React.createElement('div', { key: 'v' + vi },
-          React.createElement('span', { className: 'frp-mk' }, vi === 0 ? tr('provider') : ''),
-          (upName[v.upstream] || v.upstream) + '（' + v.model + '）')
-      })
-      rowKids.push(React.createElement('div', { className: 'frp-mdetail', key: 'detail' },
-        React.createElement('div', { key: 'nm' },
-          React.createElement('span', { className: 'frp-mk' }, tr('modelName')), m.name && m.name !== m.id ? m.name : m.id),
-        React.createElement('div', { key: 'ctx' },
-          React.createElement('span', { className: 'frp-mk' }, tr('contextWindow')), m.contextWindow ? (String(m.contextWindow) + ' tokens') : tr('unknown')),
-        viaRows.length > 0
-          ? React.createElement('div', { key: 'via', style: { display: 'flex', flexDirection: 'column', gap: '5px' } }, viaRows)
-          : React.createElement('div', { key: 'via-none' },
-              React.createElement('span', { className: 'frp-mk' }, tr('provider')), tr('unknown'))))
-    }
-    modelRows.push(React.createElement('div', { key: m.id }, rowKids))
+    // 条目 = 默认模型页 modelEntry 形态：小边框盒 + 网格行（等宽 id | 名称·上下文 | chevron），
+    // 点击展开「供应商」字段行列出各家上游与实际映射模型。
+    const metaBits = []
+    if (m.name && m.name !== m.id) metaBits.push(m.name)
+    metaBits.push(m.contextWindow ? (String(m.contextWindow) + ' tokens') : tr('unknown'))
+    modelRows.push(React.createElement('div', { key: m.id, className: 'frp-mentry' },
+      React.createElement('div', {
+        className: 'frp-mrow2', role: 'button', tabIndex: 0,
+        'aria-expanded': mOpen ? 'true' : 'false',
+        onClick: function () { setOpenModel(mOpen ? null : m.id) },
+        onKeyDown: function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setOpenModel(mOpen ? null : m.id)
+          }
+        }
+      },
+        React.createElement('span', { className: 'frp-mid', key: 'id' }, m.id),
+        React.createElement('span', { className: 'frp-mmeta', key: 'meta' }, metaBits.join(' · ')),
+        React.createElement('span', { className: 'frp-chev' + (mOpen ? ' frp-chev-open' : ''), key: 'chev' }, '›')),
+      mOpen ? React.createElement('div', { className: 'frp-mbody', key: 'detail' },
+        React.createElement('div', { className: 'frp-field', key: 'via' },
+          React.createElement('span', { className: 'frp-fieldlabel', key: 'l' }, tr('provider')),
+          via.length > 0
+            ? React.createElement('div', { className: 'frp-vialist', key: 'vl' }, via.map(function (v, vi) {
+              return React.createElement('div', { key: 'v' + vi, className: 'frp-viarow' },
+                React.createElement('span', { className: 'frp-vianame', key: 'n' }, upName[v.upstream] || v.upstream),
+                React.createElement('span', { className: 'frp-mid', key: 'm' }, v.model))
+            }))
+            : React.createElement('span', { className: 'frp-fieldval', key: 'none' }, tr('unknown')))) : null))
   }
   // ---- 模型 / 高级设置：与上游同款可展开卡片（插件页 PluginCard 形态）----
   const ucardHead = function (name, desc, isOpen, toggle) {
@@ -861,7 +879,7 @@ function Section(props) {
     },
       React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
         React.createElement('span', { className: 'frp-ucard-name', key: 'nm' }, name),
-        React.createElement('span', { className: 'frp-ucard-desc', key: 'ds' }, desc)),
+        React.createElement('span', { className: 'frp-tag', key: 'ds' }, desc)),
       React.createElement('span', { className: 'frp-chev' + (isOpen ? ' frp-chev-open' : ''), key: 'chev' }, '›'))
   }
   self.push(React.createElement('div', {
@@ -869,8 +887,7 @@ function Section(props) {
   },
     ucardHead(tr('modelsTitle'), plainModels.length + tr('countUnit'), modelsOpen, function () { setModelsOpen(!modelsOpen) }),
     modelsOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
-      React.createElement('div', { className: 'frp-fgroup', key: 'listwrap' },
-        React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows))) : null))
+      React.createElement('div', { className: 'frp-models', key: 'list' }, modelRows)) : null))
 
   // ---- 高级设置：全局代理 / 远程目录（低频配置，折叠收纳为一张卡）----
   self.push(React.createElement('div', {

@@ -9,22 +9,25 @@
         : (u.health.state === 'degraded' ? 'frp-dot-degraded' : (u.configured || u.noAuth ? 'frp-dot-up' : 'frp-dot-off')))
     const draftKey = 'draft-' + u.id
     const testInfo = tests[u.id]
-    const metaBits = []
-    if (!u.enabled) {
-      metaBits.push(tr('disabled'))
-    } else {
-      metaBits.push(tr('freeModels') + ' ' + (u.freeCount || 0) + '/' + (u.modelsCount || 0))
-      if (u.noAuth) metaBits.push(tr('noAuth'))
-      else if (u.keys > 1) metaBits.push(tr('keyX') + u.keys)
-      else if (u.configured) metaBits.push(tr('keyConfigured'))
-      else metaBits.push(tr('keyNeeded'))
-      if (u.health.state === 'cooling') metaBits.push(tr('cooling') + ' ' + Math.ceil(u.health.cooldownMs / 1000) + tr('coolingUnit'))
-      else if (u.health.state === 'degraded') metaBits.push(tr('degraded'))
-      metaBits.push(u.probedAt ? (tr('probed') + ' ' + new Date(u.probedAt).toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US')) : tr('notProbed'))
+    // 行头只留一枚 Key 状态小标签（默认模型页 rowTag 形态）；完整状态摘要
+    // 挪进卡身「运行状态」字段行，避免行头换行拥挤。
+    const headTag = !u.enabled
+      ? tr('disabled')
+      : (u.noAuth
+        ? tr('noAuth')
+        : (u.keys > 1
+          ? tr('keyX') + u.keys
+          : (u.configured ? tr('keyConfigured') : tr('keyNeeded'))))
+    const detailBits = []
+    if (u.enabled) {
+      detailBits.push(tr('freeModels') + ' ' + (u.freeCount || 0) + '/' + (u.modelsCount || 0))
+      if (u.health.state === 'cooling') detailBits.push(tr('cooling') + ' ' + Math.ceil(u.health.cooldownMs / 1000) + tr('coolingUnit'))
+      else if (u.health.state === 'degraded') detailBits.push(tr('degraded'))
+      detailBits.push(u.probedAt ? (tr('probed') + ' ' + new Date(u.probedAt).toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US')) : tr('notProbed'))
     }
     const kids = []
-    // 卡片头：名称 + 状态摘要上下两行（插件页 PluginCard 同款），点击整行展开；
-    // ↑/↓/启停开关是卡片头里的就地操作，stopPropagation 不触发展开。
+    // 卡片头：圆点 + 名称 + 状态标签 + 操作 内联一行（默认模型页 rowHead 同款），
+    // 点击整行展开；↑/↓/启停开关就地操作，stopPropagation 不触发展开。
     kids.push(React.createElement('div', {
       key: 'head', className: 'frp-ucard-head', role: 'button', tabIndex: 0,
       'aria-expanded': open ? 'true' : 'false',
@@ -39,7 +42,7 @@
       React.createElement('span', { className: 'frp-dot ' + dotClass, key: 'dot', title: u.health.state }),
       React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
         React.createElement('span', { className: 'frp-ucard-name' + (u.enabled ? '' : ' frp-muted'), key: 'nm' }, u.name),
-        React.createElement('span', { className: 'frp-ucard-desc', key: 'meta' }, metaBits.join(' · '))),
+        React.createElement('span', { className: 'frp-tag', key: 'tag' }, headTag)),
       React.createElement('span', { key: 'ctl', className: 'frp-pctl' },
         React.createElement('button', {
           key: 'up', className: 'frp-btn frp-btn-ghost frp-iconbtn', title: tr('moveUp'),
@@ -66,6 +69,13 @@
 
     if (open) {
       const dk = []
+
+      // 运行状态字段行（默认模型页 field 形态）：免费模型占比 / 冷却 / 上次探测
+      if (detailBits.length > 0) {
+        dk.push(React.createElement('div', { className: 'frp-field', key: 'stat' },
+          React.createElement('span', { className: 'frp-fieldlabel', key: 'l' }, tr('stateLabel')),
+          React.createElement('div', { className: 'frp-fieldval', key: 'v' }, detailBits.join(' · '))))
+      }
 
       // 密钥显示/隐藏：隐藏态 = span 内 14 个星号（已配置时）；显示态 =
       // 多行输入框（一行一把，可编辑保存）。未配置时无需掩码，直接多行输入。
