@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.13]
+
+### Changed
+
+- **「免费」列表行几何对齐默认 provider 行**（修正 0.8.11 引入的布局偏差）：
+  - 模型条目放弃比例网格列（第二列文字从行中 58% 处起排，视觉居中悬浮），
+    改为单行 flex 左贴：等宽 id 定宽 + 名称·上下文弹性左对齐（超长省略）+
+    chevron 靠右；条目内边距 6px → 4px 8px（≈原生 candidate 行 26px）。
+  - 供应商映射行同步收紧（padding 4px 8px），与模型行同高。
+  - 上游行头对齐原生 rowIdentity/rowActions 结构：名称 → Key 标签 → 状态圆点
+    顺序（credentialDot 同位），控件区（↑/↓/开关）改 `margin-left:auto` 右移，
+    文本区不再 `flex:1`；圆点 9px → 8px 对齐原生 credentialDot。
+
+### Tests
+
+- client-integration 第 7 节断言同步（行头 rowIdentity 三件套、chevron 索引、
+  模型行条左贴结构），51 项全绿。
+
 ## [0.8.12]
 
 ### Changed

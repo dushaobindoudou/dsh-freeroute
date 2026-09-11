@@ -302,7 +302,7 @@ await (async function () {
     check('上游卡类名 frp-ucard（未展开）', up0.props.className === 'frp-ucard', up0.props.className)
     const head0 = up0.children[0]
     check('卡片头 role=button + aria-expanded=false + tabIndex', head0.props.className === 'frp-ucard-head' && head0.props.role === 'button' && head0.props['aria-expanded'] === 'false' && head0.props.tabIndex === 0)
-    check('卡片头：圆点 + 名称 + Key 标签 + 操作 + chevron', head0.children.length === 4 && head0.children[0].props.className.indexOf('frp-dot') === 0 && head0.children[1].props.className === 'frp-ucard-text' && head0.children[1].children[0].children[0] === 'Vision Up' && head0.children[1].children[1].props.className === 'frp-tag' && head0.children[1].children[1].children[0] === 'Key ×2' && head0.children[2].props.className === 'frp-pctl' && head0.children[3].props.className === 'frp-chev')
+    check('卡片头：名称 + Key 标签 + 圆点（rowIdentity）+ 操作 + chevron', head0.children.length === 3 && head0.children[0].props.className === 'frp-ucard-text' && head0.children[0].children[0].children[0] === 'Vision Up' && head0.children[0].children[1].props.className === 'frp-tag' && head0.children[0].children[1].children[0] === 'Key ×2' && head0.children[0].children[2].props.className.indexOf('frp-dot') === 0 && head0.children[1].props.className === 'frp-pctl' && head0.children[2].props.className === 'frp-chev')
     check('未展开不渲染卡身', up0.children.length === 1)
     check('隐藏恢复行在卡片栈末尾', cards[2].props.className === 'frp-hiddenrow')
 
@@ -313,7 +313,7 @@ await (async function () {
     const up0b = tree2.children[1].children[0]
     check('展开后卡类名 frp-ucard-open', up0b.props.className === 'frp-ucard frp-ucard-open', up0b.props.className)
     check('aria-expanded 同步为 true', up0b.children[0].props['aria-expanded'] === 'true')
-    check('chevron 旋转态类名', up0b.children[0].children[3].props.className === 'frp-chev frp-chev-open')
+    check('chevron 旋转态类名', up0b.children[0].children[2].props.className === 'frp-chev frp-chev-open')
     check('卡身 frp-ucard-body 承载详情', up0b.children[1].props.className === 'frp-ucard-body' && up0b.children[1].children[0].props.className === 'frp-pdetail')
     check('卡身详情以运行状态字段行开头', up0b.children[1].children[0].children[0].props.className === 'frp-field' && String(up0b.children[1].children[0].children[0].children[1].children[0]).indexOf('免费') >= 0)
 
@@ -328,7 +328,7 @@ await (async function () {
 
     // 模型条目：modelEntry 盒 + 网格行（等宽 id | 名称·上下文 | chevron），点击展开供应商
     const mlist = modelsCard3.children[1].children[0]
-    check('模型条目为 modelEntry 盒 + 网格行', mlist.props.className === 'frp-models' && mlist.children[0].props.className === 'frp-mentry' && mlist.children[0].children[0].props.className === 'frp-mrow2' && mlist.children[0].children[0].props.role === 'button' && mlist.children[0].children[0].children[0].children[0] === 'vision-1')
+    check('模型条目为 modelEntry 盒 + 单行左贴行条', mlist.props.className === 'frp-models' && mlist.children[0].props.className === 'frp-mentry' && mlist.children[0].children[0].props.className === 'frp-mrow2' && mlist.children[0].children[0].props.role === 'button' && mlist.children[0].children[0].children[0].children[0] === 'vision-1' && mlist.children[0].children[0].children[1].props.className === 'frp-mmeta')
     mlist.children[0].children[0].props.onClick()
     sr.begin()
     const entry = fb.component().children[2].children[1].children[0].children[0]

@@ -39,10 +39,10 @@
         }
       }
     },
-      React.createElement('span', { className: 'frp-dot ' + dotClass, key: 'dot', title: u.health.state }),
       React.createElement('div', { className: 'frp-ucard-text', key: 'txt' },
         React.createElement('span', { className: 'frp-ucard-name' + (u.enabled ? '' : ' frp-muted'), key: 'nm' }, u.name),
-        React.createElement('span', { className: 'frp-tag', key: 'tag' }, headTag)),
+        React.createElement('span', { className: 'frp-tag', key: 'tag' }, headTag),
+        React.createElement('span', { className: 'frp-dot ' + dotClass, key: 'dot', title: u.health.state })),
       React.createElement('span', { key: 'ctl', className: 'frp-pctl' },
         React.createElement('button', {
           key: 'up', className: 'frp-btn frp-btn-ghost frp-iconbtn', title: tr('moveUp'),
