@@ -75,15 +75,15 @@ const CSS = [
   '.frp-btn-ghost { border-color: transparent; color: var(--dsw-alias-label-secondary, inherit); }',
   '.frp-check { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }',
   '.frp-form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }',
-  // 模型页底部扩展区（settings.models.footer）：与宿主提供方列表之间加一条
-  // 分隔线，标题行整行可点、可键盘操作（role=button + aria-expanded）。
-  '.frp-footer { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.3)); display: flex; flex-direction: column; gap: 12px; }',
-  '.frp-footerhead { display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; border-radius: 8px; }',
-  '.frp-footerhead:hover { background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.06)); }',
-  '.frp-footerhead:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, currentColor); outline-offset: 2px; }',
-  '.frp-footertitle { font-size: 14px; font-weight: 600; }',
-  '.frp-footernote { font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
-  '.frp-footerhead .frp-chev { margin-left: auto; }',
-  '.frp-footerbody { min-width: 0; }'
+  // 页签条与面板：视觉与交互对齐宿主「设置 -> 插件」页（下划线页签 + aria + 方向键）。
+  '.frp-tabpage { max-width: 720px; color: var(--dsw-alias-label-primary, inherit); flex-direction: column; gap: 12px; display: flex; }',
+  '.frp-tabs { border-bottom: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.3)); align-items: flex-end; gap: 22px; margin-top: 2px; display: flex; }',
+  '.frp-tab { color: var(--dsw-alias-label-tertiary, rgba(128,128,128,.9)); font: inherit; cursor: pointer; background: 0 0; border: 0; padding: 7px 1px 9px; font-size: 13px; line-height: 20px; position: relative; }',
+  '.frp-tab:hover, .frp-tab[data-active=true] { color: var(--dsw-alias-label-primary, inherit); }',
+  '.frp-tab[data-active=true]:after, .frp-tab:focus-visible:after { background: var(--dsw-alias-label-primary, currentColor); content: ""; border-radius: 2px 2px 0 0; height: 2px; position: absolute; bottom: -1px; left: 0; right: 0; }',
+  '.frp-tab:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, currentColor); outline-offset: 2px; color: var(--dsw-alias-label-primary, inherit); border-radius: 2px; }',
+  '.frp-panel { min-width: 0; padding-top: 2px; }',
+  // 原模型页包裹层：不生成盒子，让内置 section 直接参与 frp-tabpage 布局。
+  '.frp-models-scope { display: contents; }'
 ].join('\n')
 

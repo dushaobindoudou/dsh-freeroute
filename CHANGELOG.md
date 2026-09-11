@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.9]
+
+### Changed
+
+- **恢复「设置 → 模型」页的页签切换形态**：0.8.8 把面板迁到官方
+  `settings.models.footer` 子插槽、渲染为页面底部的可折叠区块；用户反馈
+  「默认 | 免费」页签切换更自然，本版回到 0.8.7 的交互——标题与介绍保持原位，
+  页签条插在介绍之后（结构对齐「设置 → 插件」页：下划线页签、aria 角色、
+  方向键导航），「免费」页签隐藏内置内容并承载完整面板，访问过的面板保持
+  挂载；插件停止时换回原组件、移除页签条并还原可见性，完全可逆。
+- 官方 footer 子插槽渲染在提供方行与添加区之后（页面底部），给不出「同一
+  内容区切换默认/免费」的语义，页签形态仍需换血内置 models 条目的
+  component + 在内置页 DOM 插自绘页签条。该做法在 dsh 0.1.5-rc.2 上实测可用
+  （renderer/settings 客户端与 0.1.2-rc.1 字节一致），并保持防御性实现：
+  只动自建节点、条目缺失退独立设置页、停止完全还原。
+- 0.8.8 的其余内容不变（视觉模态契约修复、免费模型配置刷新、宿主侧测试）。
+
+### Tests
+
+- `client-integration` 测试随页签架构重写：换血条目（component 替换/还原、
+  幂等、options 保留）、无 models 条目兜底、条目晚出现接管、停止可逆（含
+  停止后不复活）、渲染形态（frp-tabpage + 默认 tabpanel 承载原组件 + 懒挂载）
+  与源码契约（tablist/页签文案/MutationObserver 守护/无反引号）。
+
 ## [0.8.8]
 
 兼容目标：dsh 0.1.5-rc.2（同时保持对 0.1.2-rc.1 起的行为兼容）。
