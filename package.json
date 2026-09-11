@@ -1,6 +1,6 @@
 {
   "name": "dsh-freeroute",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "description": "Free-tier model aggregation for the DeepSeek Harness (dsh): registers the freeroute provider over a pool of free-quota upstreams (OpenCode Zen / B.AI / OpenRouter / SenseNova built in, plus remote catalogs and custom gateways), transparent failover before first token, multi-key rotation with per-key failure visibility, user-supplied API keys with per-upstream signup tutorials, a settings panel, and an OpenAI-compatible local endpoint.",
   "type": "module",
   "main": "./lib/index.js",
@@ -21,7 +21,7 @@
     "build:static": "npm run build:dynamic && node scripts/build-static.mjs && node scripts/build-static-client.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "node test/smoke.mjs",
+    "test": "node test/smoke.mjs && node freeroute-dynamic/test/client-integration.mjs",
     "prepublishOnly": "npm run build:static && npm run lint && npm test",
     "build:dynamic": "node scripts/build-dynamic.mjs"
   },
@@ -74,8 +74,8 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-typert-protocol": "0.1.2-rc.1",
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.1.5-rc.2",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.8.1"
   }

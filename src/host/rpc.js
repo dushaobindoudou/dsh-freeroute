@@ -94,6 +94,13 @@
                 if (typeof m.id !== 'string' || m.id.length === 0 || m.id.length > 200) return 'custom.models[].id 无效'
                 if (m.name !== undefined && typeof m.name !== 'string') return 'custom.models[].name 无效'
                 if (m.contextWindow !== undefined && !(Number(m.contextWindow) > 0)) return 'custom.models[].contextWindow 无效'
+                // 可选视觉声明（与目录字段同义）：显式列出输入模态。只接受
+                // text/image；省略 = 未知（图片原样透传，由上游裁决）。
+                if (m.inputModalities !== undefined) {
+                  if (!Array.isArray(m.inputModalities) || m.inputModalities.length === 0 || m.inputModalities.length > 4) return 'custom.models[].inputModalities 需为 1-4 项数组'
+                  for (const im of m.inputModalities) { if (im !== 'text' && im !== 'image') return 'custom.models[].inputModalities 仅支持 text/image' }
+                }
+                if (m.vision !== undefined && typeof m.vision !== 'boolean') return 'custom.models[].vision 需为布尔值'
               }
             }
           }

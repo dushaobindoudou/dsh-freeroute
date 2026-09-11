@@ -4,6 +4,68 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.8]
+
+兼容目标：dsh 0.1.5-rc.2（同时保持对 0.1.2-rc.1 起的行为兼容）。
+
+### Fixed
+
+- **会话内图片输入此前被宿主拦下/丢弃（0.8.6/0.8.7 的透传从未真正生效）**：
+  适配器对所有模型硬编码回传 `inputModalities: ['text']`。按 dsh-llm 的
+  `LlmModelInfo` 契约，**缺省 = 未知**，而**显式 `['text']` = 负能力**：
+  `resolveModelInfo` 会在入站时直接拒绝附图
+  （`MODEL_DOES_NOT_SUPPORT_IMAGES`），已附图的历史消息还会在派发前被投影成
+  `[image omitted because this model accepts text only; …]`——模型只会「听说」
+  有图。现在只有来源明确声明支持视觉的模型才回传 `['text','image']`，其余
+  一律不写该字段（未知 = 图片原样透传给上游，由 4xx → 候选链自愈）。
+- 视觉能力的三条来源全部接通：内置种子表（`deepseek-v4-flash-vision-exp` /
+  `openrouter/free` / `ling-3.0-flash-vl` / `gemma-4` / `glm-4.6v` 等）、
+  远程与 native 目录（`inputModalities: ['text','image']`、简写 `vision: true`、
+  models.dev 的 `modalities.input`）、上游 `GET /models` 探测
+  （OpenRouter 的 `architecture.input_modalities`、部分网关的 `input_modalities`
+  / `modalities`）。自定义上游 patch 与 `apply-patch` 校验同步支持该字段。
+
+### Changed
+
+- **「设置 → 模型」页集成改用宿主官方子插槽 `settings.models.footer`**
+  （dsh 0.1.x 起提供，0.1.5-rc.2 实测可用）：完整 FreeRoute 面板作为提供方行
+  与「添加」区之后的独立区块渲染，标题行可折叠、默认展开（收起即卸载面板，
+  5s 状态轮询随之停止）。删除了自 0.4 起的 DOM 换血实现——包裹内置 models
+  条目的 `component`、`MutationObserver` 往宿主 DOM 插自绘页签条、隐藏/还原
+  兄弟节点——那套做法依赖 `h2`/`intro` 的 DOM 形状与 React reconciliation 的
+  巧合，宿主一改版就会错位或闪烁。
+- 兜底路径保留：宿主未声明该子槽时（旧 dsh / 未加载模型页插件）宽限 2.5s 后
+  回落到独立 freeroute 设置页；声明晚到时兜底页自动撤销，不会出现两个入口。
+  插件停止时所有注册随 fiber 撤销，完全可逆。
+- devDependency `@deepseek-ai/dsh-typert-protocol` `0.1.2-rc.1` → `0.1.5-rc.2`
+  （对齐宿主；运行时仍优先锚定宿主自带副本）。peer 范围保持
+  `>=0.1.0-rc.6 <0.2.0` 不变。
+
+### 免费模型配置
+
+- OpenCode Zen 种子表按 2026-09-11 live 核对重写：`x-preview-f-free` /
+  `hy3-free` / `laguna-s-2.1-free` 均已下线；现役 7 款 `-free`
+  （`deepseek-v4-flash-free` 为首选，含 `muse-spark-1.3/1.2-contributor-free`、
+  `ling-3.0-flash-fin-free`、`nemotron-3.5-lightning-free`、`nemotron-3-ultra-free`、
+  `mimo-v2.5-free`）。
+- OpenRouter 种子表换成现役免费档（`openrouter/free` 等 8 款，其中 4 款带视觉
+  声明）；旧表里的 `deepseek-chat-v3-0324:free` / `qwen-2.5-72b:free` 等已不再免费。
+- SenseNova 首选模型对齐 `deepseek-v4-flash`；`KNOWN_BASE` 修正为
+  `https://token.sensenova.cn/v1`（`api.sensenova.cn/compatible-mode/v1` 对目录
+  同步与推理均返回 403）。
+- 仓库内备份目录 `freeroute-dynamic/catalog/freeroute-catalog.json` 同步到线上
+  10 家上游的现状（此前停在 6 家 / 2026-08-26），并补上视觉声明。
+
+### Tests
+
+- 新增 `freeroute-dynamic/test/client-integration.mjs`（23 断言，纯 node，无需
+  浏览器）：官方 footer 注册、宽限期兜底、晚到声明接管、停止可逆、DOM 换血
+  已移除的源码契约。已纳入 `npm test`。
+- 宿主集成测试新增第 21 节（16 断言）锁死模态语义：声明视觉 → `['text','image']`，
+  未声明/auto/未知模型 → 不带 `inputModalities`；覆盖内置 patch、native 目录、
+  `vision: true` 简写与 `/models` 探测四条路径。
+- smoke 与集成测试全绿（宿主 199 项 + 客户端 23 项 + smoke 全通过）。
+
 ## [0.8.7]
 
 ### Fixed

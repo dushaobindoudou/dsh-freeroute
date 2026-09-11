@@ -1128,6 +1128,89 @@ section('20b. 大窗候选全部不可用时小窗候选仍兜底（沉底不删
   await rpc('freeroute.apply-patch', { patch: { order: [] } })
 }
 
+section('21. 视觉输入模态：只正面声明 image，未知一律不声明（dsh 契约回归）')
+{
+  // dsh 的 LlmModelInfo 契约：缺省 = 未知（图片原样透传），显式 ['text'] =
+  // 负能力（宿主直接拒绝附图 + 把已附图消息投影成 “[image omitted]”）。
+  // 0.8.7 之前适配器一律回传 ['text']，0.8.6/0.8.7 的图片透传在会话里根本
+  // 没生效。这里锁死修复后的语义。
+  const pre = await state()
+  const off = { upstreams: {} }
+  for (const u of pre.upstreams) off.upstreams[u.id] = { enabled: false }
+  await rpc('freeroute.apply-patch', { patch: off })
+  const portMod = await listen('modOk', mkText('MOD'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['mod-vision'], upstreams: {
+    'mod-vision': { enabled: true, custom: { noAuth: true, baseUrl: b(portMod), defaultModel: 'vision-1', freeModels: ['vision-1', 'plain-1'], models: [
+      { id: 'vision-1', name: 'Vision One', contextWindow: 131072, inputModalities: ['text', 'image'] },
+      { id: 'plain-1', name: 'Plain One', contextWindow: 131072 }
+    ] } }
+  } } })
+  const vm = await adapter.resolveModel('freeroute', 'vision-1')
+  check('声明视觉的模型回传 [text,image]（宿主才放行附图）', Array.isArray(vm.inputModalities) && vm.inputModalities.indexOf('image') >= 0, JSON.stringify(vm.inputModalities))
+  check('视觉模型仍上报真实窗口', vm.context && vm.context.contextWindow === 131072, JSON.stringify(vm.context))
+  const pm = await adapter.resolveModel('freeroute', 'plain-1')
+  check('未声明模态的模型不带 inputModalities（未知=透传，不再是负能力）', pm.inputModalities === undefined, JSON.stringify(pm.inputModalities))
+  const am = await adapter.resolveModel('freeroute', 'auto')
+  check('auto 不带 inputModalities（附图交给候选链自愈）', am.inputModalities === undefined, JSON.stringify(am.inputModalities))
+  const um = await adapter.resolveModel('freeroute', 'no-such-model')
+  check('未知模型兜底也不带 inputModalities', um.inputModalities === undefined, JSON.stringify(um.inputModalities))
+  const lm = await adapter.listModels('freeroute')
+  const vi = lm.find((m) => m.id === 'vision-1')
+  const pl = lm.find((m) => m.id === 'plain-1')
+  check('listModels：视觉款带 image', vi != null && Array.isArray(vi.inputModalities) && vi.inputModalities.indexOf('image') >= 0, JSON.stringify(vi))
+  check('listModels：未知款不带模态字段', pl != null && pl.inputModalities === undefined, JSON.stringify(pl))
+  check('listModels：auto 不带模态字段', lm[0].id === 'auto' && lm[0].inputModalities === undefined, JSON.stringify(lm[0]))
+
+  // 目录声明路径：native 目录的 inputModalities / vision:true 必须被解析进模型表
+  const portModCat = await listen('modCat', (req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ upstreams: [{
+      id: 'mod-cat', name: 'Mod Catalog', baseUrl: b(portMod), noAuth: true, defaultModel: 'cat-vision',
+      models: [
+        { id: 'cat-vision', name: 'Cat Vision', contextWindow: 131072, inputModalities: ['text', 'image'] },
+        { id: 'cat-vision2', name: 'Cat Vision 2', contextWindow: 131072, vision: true },
+        { id: 'cat-plain', name: 'Cat Plain', contextWindow: 131072 }
+      ]
+    }] }))
+  })
+  await rpc('freeroute.apply-patch', { patch: { catalog: { remoteUrl: 'http://127.0.0.1:' + portModCat + '/cat.json' } } })
+  const sc = await rpc('freeroute.catalog.sync', {})
+  check('模态目录同步成功', sc.ok === true && sc.count === 1, JSON.stringify(sc))
+  const cv = await adapter.resolveModel('freeroute', 'cat-vision')
+  const cv2 = await adapter.resolveModel('freeroute', 'cat-vision2')
+  const cp = await adapter.resolveModel('freeroute', 'cat-plain')
+  check('目录 inputModalities 透传为 [text,image]', Array.isArray(cv.inputModalities) && cv.inputModalities.indexOf('image') >= 0, JSON.stringify(cv.inputModalities))
+  check('目录简写 vision:true 等价于 [text,image]', Array.isArray(cv2.inputModalities) && cv2.inputModalities.indexOf('image') >= 0, JSON.stringify(cv2.inputModalities))
+  check('目录未声明模态不猜测', cp.inputModalities === undefined, JSON.stringify(cp.inputModalities))
+  await rpc('freeroute.apply-patch', { patch: { catalog: { remoteUrl: '' } } })
+
+  // 探测路径：上游 /models 自带 architecture.input_modalities 时采信（OpenRouter 形态）
+  const portModProbe = await listen('modProbe', (req, res) => {
+    if (req.method === 'GET' && String(req.url).indexOf('/models') >= 0) {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ object: 'list', data: [
+        { id: 'arch-vision-free', architecture: { input_modalities: ['text', 'image'] } },
+        { id: 'arch-text-free', architecture: { input_modalities: ['text'] } }
+      ] }))
+      return
+    }
+    mkText('PROBE')(req, res)
+  })
+  const regProbe = await rpc('freeroute.apply-patch', { patch: { upstreams: {
+    'mod-probe': { enabled: true, custom: { noAuth: true, baseUrl: b(portModProbe), models: [{ id: 'probe-seed', name: 'Seed' }] } }
+  } } })
+  check('探测用上游注册成功', regProbe.ok === true, JSON.stringify(regProbe))
+  const prMod = await rpc('freeroute.probe', { id: 'mod-probe' })
+  check('探测成功且识别 image 模态', prMod.ok === true && prMod.results[0].count === 2, JSON.stringify(prMod))
+  const av = await adapter.resolveModel('freeroute', 'arch-vision-free')
+  const at = await adapter.resolveModel('freeroute', 'arch-text-free')
+  check('探测到 image 模态的模型回传 [text,image]', Array.isArray(av.inputModalities) && av.inputModalities.indexOf('image') >= 0, JSON.stringify(av.inputModalities))
+  check('探测只报 text 的模型不反向声明（仍为未知/透传）', at.inputModalities === undefined, JSON.stringify(at.inputModalities))
+  await rpc('freeroute.remove-upstream', { id: 'mod-probe' })
+  await rpc('freeroute.remove-upstream', { id: 'mod-vision' })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
 for (const d of disposers) { try { d() } catch { /* ignore */ } }
 for (const s of Object.values(servers)) { s.close() }
 

@@ -56,7 +56,7 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    the `free-proxy` settings namespace.
 5. **Local endpoint** — `http://127.0.0.1:<port>/freeroute/v1` is an
 6. **Global proxy (off by default)**: set one `http://127.0.0.1:7890`-style
-   proxy under `Settings → Models → Free → Advanced`; every upstream without
+   proxy under `Settings → Models → FreeRoute → Advanced`; every upstream without
    its own proxy (chat requests and model probing) goes through it. Per-upstream
    `custom.proxy` and catalog-declared `proxy` win over the global one; catalog
    sync always connects directly. One entry covers Clash/v2ray users — no
@@ -67,13 +67,15 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
 
 ## Settings panel
 
-dsh's built-in Settings -> 模型 (models) page is reversibly wrapped: the
-title and intro stay in place, and a **默认 | 免费** tab bar sits right below
-the intro (structure mirrors the Settings -> 插件 page: underline tabs, ARIA
-roles, arrow-key navigation, visited panels stay mounted):
+dsh's built-in Settings -> 模型 (models) page offers an additive child slot,
+`settings.models.footer`; freeroute registers into it, so the full panel is
+rendered as a collapsible block after the provider rows and the add controls.
+No host DOM is touched — the block is ordinary slot content, mounted and
+unmounted with the settings page:
 
-- **默认** keeps the stock model settings untouched;
-- **免费** hosts the full freeroute panel: per-upstream cards (enable /
+- the header row shows **免费模型 · FreeRoute** and toggles the block
+  (expanded by default; collapsing unmounts the panel and stops its 5s poll);
+- the block hosts the full freeroute panel: per-upstream cards (enable /
   priority / signup tutorial / key save / connectivity test / health & stats),
   a one-click integration wizard, remote-catalog configuration, and a
   custom-upstream form (works with local uni-api / new-api / LiteLLM gateways).
@@ -82,8 +84,8 @@ roles, arrow-key navigation, visited panels stay mounted):
   fields; `model: null` omits the model field — e.g. GMI's `/autoroute`).
 
 There is no sibling freeroute item in the settings nav (a standalone section
-appears only if the host ships no wrappable models entry). The `/freeproxy`
-command prints a text status.
+appears only if the host declares no such child slot, after a 2.5s grace
+period). The `/freeproxy` command prints a text status.
 
 ## Let other agents / tools use the pool (always auto)
 
@@ -92,7 +94,7 @@ same port — any agent or tool that accepts a custom base URL can reuse the fre
 pool:
 
 - **Base URL**: `http://127.0.0.1:<dsh web port>/freeroute/v1`
-  (default port 3080; the Free panel footer shows the exact URL)
+  (default port 3080; the FreeRoute panel header shows the exact URL)
 - **API key**: none needed (loopback only). Tools that demand a non-empty key
   accept a placeholder like `sk-freeroute`
 - **Model**: set `auto`, or **omit it entirely** (auto is the default) — picks
@@ -113,8 +115,8 @@ curl http://127.0.0.1:3080/freeroute/v1/chat/completions \
 ```
 
 Notes: the endpoint lives as long as the `dsh web` process (same machine);
-configure at least one upstream key in the Free panel so the auto chain has a
-usable node.
+configure at least one upstream key in the FreeRoute block at the bottom of the
+Settings → Models page so the auto chain has a usable node.
 
 ## Install
 
@@ -164,8 +166,8 @@ other instead of reinventing.
 
 ### Web panel (optional)
 
-`lib/client.js` registers a "Free Models" settings section in `dsh web`
-with the same ranking and one-click default. dsh's web frontend ships
+`lib/client.js` registers into the models page's `settings.models.footer`
+child slot in `dsh web` with the same ranking and one-click default. dsh's web frontend ships
 pre-built, so surfacing the panel requires adding this package to the
 dsh-web-frontend client bundle and rebuilding it.
 `free-models-preview.html` mirrors the panel standalone (serve the repo

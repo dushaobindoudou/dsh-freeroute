@@ -22,6 +22,23 @@ function pickModelIds(v) {
   return out
 }
 
+// 模型级输入模态声明（目录可选字段）：
+//   inputModalities: ['text','image']  或简写  vision: true
+// dsh 的 LlmModelInfo 契约里「缺省 = 未知，显式缺 image = 负能力」——未知时
+// 图片原样透传给上游裁决（与本插件「是否支持视觉交给路由与模型本身」一致），
+// 显式 ['text'] 则会让宿主直接拒绝用户附图（MODEL_DOES_NOT_SUPPORT_IMAGES）。
+function catalogModelModalities(m) {
+  if (m.vision === true || m.supportsVision === true) return ['text', 'image']
+  let src = null
+  if (Array.isArray(m.inputModalities)) src = m.inputModalities
+  else if (m.modalities && Array.isArray(m.modalities.input)) src = m.modalities.input
+  if (!src) return null
+  for (const x of src) {
+    if (String(x).toLowerCase() === 'image') return ['text', 'image']
+  }
+  return null
+}
+
 function normalizeCatalogEntry(e) {
   if (!e || typeof e !== 'object') return null
   const api = (typeof e.api === 'string' && e.api.length > 0) ? e.api : (typeof e.baseUrl === 'string' ? e.baseUrl : '')
@@ -37,7 +54,10 @@ function normalizeCatalogEntry(e) {
   const raw = Array.isArray(e.models) ? e.models : []
   for (const m of raw) {
     if (m && typeof m.id === 'string' && m.id.length > 0) {
-      models.push({ id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 })
+      const entry = { id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 }
+      const im = catalogModelModalities(m)
+      if (im) entry.inputModalities = im
+      models.push(entry)
     }
   }
   models.sort(function (a, b) { return b.contextWindow - a.contextWindow })
@@ -88,7 +108,10 @@ function parseModelsDev(d) {
       const c = (m && m.cost) || {}
       if (Number(c.input) === 0 && Number(c.output) === 0) {
         const ctx = (m && m.limit && Number(m.limit.context) > 0) ? Number(m.limit.context) : 32768
-        free.push({ id: mid, name: (m && typeof m.name === 'string' && m.name.length > 0) ? m.name : mid, contextWindow: ctx })
+        const entry = { id: mid, name: (m && typeof m.name === 'string' && m.name.length > 0) ? m.name : mid, contextWindow: ctx }
+        const im = m ? catalogModelModalities(m) : null
+        if (im) entry.inputModalities = im
+        free.push(entry)
       }
     }
     if (free.length === 0) continue

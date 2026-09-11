@@ -65,11 +65,16 @@ const tailMarker = `return {
     ctxRef = ctx
     const slots = ctx.slots
     styles.insert(CSS)
-    slots.inject('settings.section', function () {
-      const integ = freerouteModelsIntegration(slots)
-      const stop = slots.subscribe('settings.section', integ.attempt)
-      integ.attempt()
-      return [stop, integ.dispose]
+    const integ = freerouteModelsIntegration(slots)
+    // 官方 footer 子槽存在则同步注册（正常路径）；宽限期后仍缺席则退回独立
+    // 设置页，保证面板在任何 profile 里都可达。
+    integ.start()
+    const grace = ctx.timeout(function () { integ.fallback() }, 2500)
+    ctx.effect(function () {
+      return function () {
+        try { grace() } catch (e) { }
+        integ.dispose()
+      }
     })
   }
 }`
@@ -79,13 +84,13 @@ src = src.slice(0, src.indexOf(tailMarker)).trimEnd()
 const out = `/**
  * dsh-freeroute — client half (web).
  *
- * 设置 → 模型 页内嵌：包装 dsh 内置模型设置页（可逆换血 entry.component），
- * 标题后插「免费」按钮、DeepSeek 行上方自绘 freeroute 配置行（auto 自动路
- * 由，可编辑不可删），两者弹出模态承载完整 FreeRoute 面板（上游卡片/启停/
- * 优先级/申请教程/密钥保存/连通测试/健康统计、一键集成向导、远程目录、自
- * 定义上游表单）。宿主无 models 条目时退回独立 freeroute 设置页。数据经
- * host \`freeroute\` Remote 命名空间（Connection RPC \`/api\`）读写，密钥只进
- * credentials 服务。
+ * 设置 → 模型 页集成：注册进宿主官方子插槽 \`settings.models.footer\`
+ * （提供方行与「添加」区之后的整块扩展区），把完整 FreeRoute 面板作为模型
+ * 页底部的可折叠区块渲染（上游卡片/启停/优先级/申请教程/密钥保存/连通测试
+ * /健康统计、远程目录、自定义上游）。默认展开；收起即卸载面板（轮询随之
+ * 停止）。宿主没有该子槽声明时（旧 dsh / 未加载模型页插件），2.5s 宽限期
+ * 后回落到独立 freeroute 设置页，保证面板可达。数据经 host \`freeroute\`
+ * Remote 命名空间（Connection RPC \`/api\`）读写，密钥只进 credentials 服务。
  *
  * Ported from freeroute-dynamic/client.js — keep both sides in sync.
  */
@@ -132,13 +137,12 @@ ${src}
 			const styleEl = document.createElement("style");
 			styleEl.textContent = CSS;
 			document.head.appendChild(styleEl);
-			// 设置 → 模型 页内嵌集成：包装内置 models 条目（停止时还原）。
-			c.effect(() => slots.inject("settings.section", () => {
-				const integ = freerouteModelsIntegration(slots);
-				const stop = slots.subscribe("settings.section", integ.attempt);
-				integ.attempt();
-				return [stop, integ.dispose];
-			}), "dsh-freeroute: models-page integration");
+			// 设置 → 模型 页集成：官方 settings.models.footer 子插槽（停止时可逆
+			// 撤销）；宿主没有该声明时宽限期后回落独立设置页。
+			const integ = freerouteModelsIntegration(slots);
+			integ.start();
+			const grace = setTimeout(() => { integ.fallback(); }, 2500);
+			c.effect(() => () => { clearTimeout(grace); integ.dispose(); }, "dsh-freeroute: models-page integration");
 			return () => { styleEl.remove(); };
 		}
 

@@ -1,3 +1,15 @@
+    // 输入模态：只有来源显式声明「支持图片」才回传 inputModalities。
+    // dsh 的契约是「缺省 = 未知」，未知时图片原样交给上游裁决；早期版本一律
+    // 回传 ['text'] 属于显式负能力，会让宿主在会话里直接拒绝附图
+    // （MODEL_DOES_NOT_SUPPORT_IMAGES），并把已附图的消息投影成
+    // "[image omitted because this model accepts text only]"。
+    function withModalities(info, m) {
+      if (m && Array.isArray(m.inputModalities) && m.inputModalities.indexOf('image') >= 0) {
+        info.inputModalities = ['text', 'image']
+      }
+      return info
+    }
+
     function mergedModels(u) {
       // 目录即真相：探测拿到过列表就只用探测结果（免费模型轮换频繁，固定
       // 列表必然腐化）；静态表只作无 /models 端点（如 SenseNova）或首探前
@@ -11,7 +23,9 @@
       for (const m of (u.models || [])) {
         if (seen[m.id]) continue
         seen[m.id] = true
-        out.push({ id: m.id, name: m.name || m.id, contextWindow: m.contextWindow || 32768, free: isFreeModelId(m.id) })
+        const e = { id: m.id, name: m.name || m.id, contextWindow: m.contextWindow || 32768, free: isFreeModelId(m.id) }
+        withModalities(e, m)
+        out.push(e)
       }
       return applyFreeModels(out, u)
     }
@@ -85,6 +99,7 @@
           if (m.free === true) entry.free = true
           if (!entry.contextWindow && m.contextWindow) entry.contextWindow = m.contextWindow
           if (!entry.name && m.name && m.name !== m.id) entry.name = m.name
+          if (Array.isArray(m.inputModalities) && m.inputModalities.indexOf('image') >= 0) entry.inputModalities = ['text', 'image']
           if (!entry.via.some(function (v) { return v.upstream === u.id && v.model === m.id })) {
             entry.via.push({ upstream: u.id, model: m.id })
           }

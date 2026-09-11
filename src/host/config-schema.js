@@ -39,7 +39,10 @@ function sanitizeConfig(raw) {
           const ms = []
           for (const m of c.models) {
             if (m && typeof m.id === 'string' && m.id.length > 0) {
-              ms.push({ id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 })
+              const mm = { id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 }
+              const im = catalogModelModalities(m)
+              if (im) mm.inputModalities = im
+              ms.push(mm)
             }
           }
           if (ms.length > 0) cu.models = ms

@@ -3,9 +3,8 @@
 // useSyncExternalStore 订阅 revision，语言切换或字典注册都会触发面板重渲染。
 const STRINGS = {
   zh: {
-    tabDefault: '默认',
-    tabFree: '免费',
-    tablistAria: '模型设置页签',
+    footerTitle: '免费模型 · FreeRoute',
+    footerNote: '免费上游池 · 首 token 前自动故障转移',
     loading: '正在加载 FreeRoute 免费模型代理状态…',
     stateBad: '状态数据格式异常（宿主与客户端版本不匹配，请重启 dsh web 后刷新）',
     loadFail: '加载失败: ',
@@ -88,13 +87,11 @@ const STRINGS = {
     catHint3: '· freeModels 可选：模型名不带 free 字样时声明免费名单',
     catHint4: '· proxy 可选：该上游需走代理时填',
     catHint5: '模型列表无需写死——同步后自动探测；也兼容 models.dev 的 api.json。',
-    catPlaceholder: 'https://<你的域名>/freeroute.json',
-    modelsMissing: '未找到内置模型设置页组件（dsh 版本不兼容？）。请用「免费」页签配置免费模型。'
+    catPlaceholder: 'https://<你的域名>/freeroute.json'
   },
   en: {
-    tabDefault: 'Default',
-    tabFree: 'Free',
-    tablistAria: 'Model settings tabs',
+    footerTitle: 'Free models · FreeRoute',
+    footerNote: 'Free upstream pool · failover before the first token',
     loading: 'Loading FreeRoute free-model proxy state…',
     stateBad: 'Unexpected state shape (host/client version mismatch — restart dsh web and reload)',
     loadFail: 'Load failed: ',
@@ -177,8 +174,7 @@ const STRINGS = {
     catHint3: '· freeModels optional: declare the free list when model ids lack a "free" marker',
     catHint4: '· proxy optional: set when this upstream needs a proxy',
     catHint5: 'Model lists are probed after sync — also accepts models.dev api.json.',
-    catPlaceholder: 'https://<your-domain>/freeroute.json',
-    modelsMissing: 'Built-in models settings component not found (dsh version incompatible?). Use the "Free" tab to configure free models.'
+    catPlaceholder: 'https://<your-domain>/freeroute.json'
   }
 }
 

@@ -1,3 +1,18 @@
+    // 上游 /models 自带模态时采信（OpenRouter: architecture.input_modalities；
+    // 部分网关: input_modalities / modalities）。只做正面声明（image），不反向
+    // 声明纯文本——dsh 契约里显式 ['text'] 会直接拒绝用户附图。
+    function probeModelModalities(m) {
+      let src = null
+      if (Array.isArray(m.input_modalities)) src = m.input_modalities
+      else if (m.architecture && Array.isArray(m.architecture.input_modalities)) src = m.architecture.input_modalities
+      else if (Array.isArray(m.modalities)) src = m.modalities
+      if (!src) return null
+      for (const x of src) {
+        if (String(x).toLowerCase() === 'image') return ['text', 'image']
+      }
+      return null
+    }
+
     async function probeModels(u, force) {
       const cached = probeCache.get(u.id)
       if (!force && cached && Date.now() - cached.at < 1800000) return cached
@@ -29,6 +44,8 @@
             contextWindow: cw > 0 ? cw : 0,
             free: isFreeModelId(id) || declaredSet.has(id)
           }
+          const im = probeModelModalities(m)
+          if (im) entry.inputModalities = im
           if (entry.free) free.push(entry)
           else paid.push(entry)
         }

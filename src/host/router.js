@@ -434,13 +434,15 @@
         // 未配 Key 上游的模型不展示（选了也用不了）；付费模型不进选择器，
         // 但显式指定（freeroute/<id> 或通用名）仍可派发，见 candidatesSync。
         const readySet = await readyUpstreamIdSet()
-        const out = [{ provider: ROUTE, id: 'auto', name: '⚡ Auto（自动切换）', description: '按优先级在已启用的免费上游间自动选择与切换', inputModalities: ['text'] }]
+        // 模态声明：auto 不声明（未知 = 允许附图，路由失败再自动切换）；
+        // 单个免费模型仅在来源明确声明支持图片时带上 ['text','image']。
+        const out = [{ provider: ROUTE, id: 'auto', name: '⚡ Auto（自动切换）', description: '按优先级在已启用的免费上游间自动选择与切换' }]
         const freeList = []
         for (const entry of buildAliasIndex().values()) {
           if (entry.free !== true) continue
           const viaReady = entry.via.filter(function (v) { return readySet.has(v.upstream) })
           if (viaReady.length === 0) continue
-          freeList.push({ provider: ROUTE, id: entry.id, name: entry.name || entry.id, description: '免费模型 · ' + viaReady.length + ' 家上游 · 失效自动切换', inputModalities: ['text'] })
+          freeList.push(withModalities({ provider: ROUTE, id: entry.id, name: entry.name || entry.id, description: '免费模型 · ' + viaReady.length + ' 家上游 · 失效自动切换' }, entry))
         }
         const byId = function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0 }
         freeList.sort(byId)
@@ -449,8 +451,10 @@
       resolveModel: async function (provider, model) {
         // auto 不再写死 32768：按当前候选链首选模型上报真实窗口（根因 A）。
         // 否则 dsh 永远按 32K 管理会话，稍长对话就被压缩裁剪、上下文经常断。
+        // 模态不声明（未知）：用户在 auto 下发图不会被宿主拦下，具体上游不
+        // 识图时由 4xx → 候选链自动换模型/换上游。
         if (model === 'auto') {
-          return { provider: ROUTE, id: model, name: '⚡ Auto（自动切换）', inputModalities: ['text'], context: { contextWindow: await autoContextWindow() } }
+          return { provider: ROUTE, id: model, name: '⚡ Auto（自动切换）', context: { contextWindow: await autoContextWindow() } }
         }
         let found = null
         const slash = model.indexOf('/')
@@ -478,7 +482,7 @@
                 }
               }
             }
-            found = { name: entry.name, contextWindow: cw, free: entry.free }
+            found = { name: entry.name, contextWindow: cw, free: entry.free, inputModalities: entry.inputModalities }
           }
         }
         if (!found) {
@@ -488,9 +492,9 @@
           }
         }
         if (found) {
-          return { provider: ROUTE, id: model, name: found.name || model, inputModalities: ['text'], context: { contextWindow: found.contextWindow || 32768 } }
+          return withModalities({ provider: ROUTE, id: model, name: found.name || model, context: { contextWindow: found.contextWindow || 32768 } }, found)
         }
-        return { provider: ROUTE, id: model, name: model, inputModalities: ['text'], context: { contextWindow: 32768 } }
+        return { provider: ROUTE, id: model, name: model, context: { contextWindow: 32768 } }
       },
       // dsh 的 LlmAdapter 契约要求 prepareCall（基类有默认实现，但普通对象
       // 字面量适配器必须自带）：把模型元数据与本次分发的流入口绑定到同一代。
