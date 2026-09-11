@@ -85,7 +85,12 @@ const nSub = host.split(VERSION_PLACEHOLDER).length - 1
 if (nSub !== 1) throw new Error('VERSION placeholder must occur exactly once in src/host/constants.js, found ' + nSub)
 host = host.replace(VERSION_PLACEHOLDER, "'" + pkg.version + "'")
 
-const client = cat('client', CLIENT_TOP) + SECTION_OPEN + cat('client', CLIENT_PANEL) + SECTION_CLOSE + cat('client', CLIENT_TAIL)
+let client = cat('client', CLIENT_TOP) + SECTION_OPEN + cat('client', CLIENT_PANEL) + SECTION_CLOSE + cat('client', CLIENT_TAIL)
+
+const CLIENT_VERSION_PLACEHOLDER = "'__FREEROUTE_CLIENT_CSS_VERSION__'"
+const nClientVer = client.split(CLIENT_VERSION_PLACEHOLDER).length - 1
+if (nClientVer !== 1) throw new Error('client CSS version placeholder must occur exactly once in src/client/styles.js, found ' + nClientVer)
+client = client.replace(CLIENT_VERSION_PLACEHOLDER, "'" + pkg.version + "'")
 
 // ---- guards ----
 // Backticks would break the integration rig's new Function wrapping.

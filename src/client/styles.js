@@ -1,4 +1,6 @@
-const CSS = [
+const CSS_VERSION = '__FREEROUTE_CLIENT_CSS_VERSION__'
+// 版本标记：sweepStaleStyles() 依此识别并清掉旧版本孤儿样式。
+const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
   '.frp-card { background: var(--dsw-alias-bg-layer-3, rgba(128,128,128,.06)); border: .5px solid var(--dsw-alias-border-l4, rgba(128,128,128,.3)); border-radius: 16px; padding: 14px 16px; transition: border-color .16s, background .16s; }',
   '.frp-card:hover { border-color: var(--dsw-alias-label-dimmed, rgba(128,128,128,.5)); }',

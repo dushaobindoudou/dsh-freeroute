@@ -64,6 +64,7 @@ const tailMarker = `return {
   apply(ctx) {
     ctxRef = ctx
     const slots = ctx.slots
+    sweepStaleStyles()
     styles.insert(CSS)
     slots.inject('settings.section', function () {
       const integ = freerouteModelsIntegration(slots)
@@ -128,6 +129,7 @@ ${src}
 			connectionSvc = c.get("connection");
 			const slots = c.get("slots");
 			if (slots === undefined) return;
+			sweepStaleStyles();
 			// Scoped style sheet: removed with the plugin fiber.
 			const styleEl = document.createElement("style");
 			styleEl.textContent = CSS;

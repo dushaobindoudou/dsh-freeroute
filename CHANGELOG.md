@@ -4,6 +4,27 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.15]
+
+### Fixed
+
+- **根治「旧样式层叠泄漏」**——这是 0.8.13/0.8.14 三项症状（行头
+  `width: 100%`、text 堆叠换行、卡片双内边距偏高）的真正来源：`dsh web`
+  进程重启/插件热更后，长开的浏览器页签里旧版本 `<style>` 成为孤儿（其
+  disposer 已随旧进程消亡），旧规则顶掉新表未显式声明的属性。
+  - CSS 头部加**版本标记**（`/* dsh-freeroute-client-css v<version> */`，
+    构建时由 package.json 单源注入，动态/静态两条构建链同步）。
+  - 挂载时执行 `sweepStaleStyles()`：按标记清扫所有非当前版本的
+    freeroute 样式元素（以 `.frp-tab`/`.frp-cards` 独有选择器识别，
+    不触碰宿主与第三方样式）。动态（styles.insert）与静态（web 模块）
+    两条挂载路径都已接入。
+  - 无头 Chrome 端到端实测：清扫后旧表（0.8.10/0.8.11 模拟）全部移除、
+    当前版本表保留、宿主样式不动、`width:100%`/旧 padding/column 泄漏消失。
+
+### Tests
+
+- client-integration 51 项全绿（清扫函数在无 document 环境下守卫直返）。
+
 ## [0.8.14]
 
 ### Changed
