@@ -4,6 +4,26 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.14]
+
+### Changed
+
+- **上游/模型卡片几何修复**（无头 Chrome 实测驱动，修正三项反馈）：
+  - 按反馈**删除 `.frp-ucard` 的 `padding: 12px 14px`**（连同 `gap`），内边距改由
+    行头（`8px 10px`）与卡身（`10px 10px 12px`）各自承担；卡片高度 46→38px，
+    不再撑宽撑高。
+  - **chevron 改固定 16px 方形盒**：原先裸 '›' 旋转后字形戳出行头右缘
+    （实测任意宽度恒定溢出 7px，即「head 超出外部区域」），方形盒旋转后
+    溢出归零。
+  - 行头/文本区显式 `flex-direction: row` + `flex-wrap: nowrap`（防御性：
+    任何环境下名称/标签/圆点都不堆叠换行，超长一律省略号）。
+  - ↑/↓ 图标按钮微缩（11px / padding 2px 5px），缓解行头拥挤。
+
+### Tests
+
+- 无头 Chrome 几何回归：200–720px 全宽度卡片高 38px、head 溢出 0、
+  text 单行 20px、name 正常省略。client-integration 51 项不变全绿。
+
 ## [0.8.13]
 
 ### Changed
