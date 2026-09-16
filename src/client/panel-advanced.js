@@ -80,7 +80,7 @@
     '    "tutorial": "https://your.site/bai-tutorial",\n' +
     '    "api": "https://api.b.ai/v1",\n' +
     '    "apikey": ["sk-xxx"],\n' +
-    '    "freeModels": ["deepseek-v4-flash", "hy3"],\n' +
+    '    "freeModels": ["hy3", "mimo-v2.5"],\n' +
     '    "proxy": "http://127.0.0.1:7890"\n' +
     '  }\n' +
     ']'))

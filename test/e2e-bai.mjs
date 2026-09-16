@@ -121,8 +121,8 @@ const st2 = await rpc('freeroute.state', {})
 const bai2 = st2.upstreams.find((u) => u.id === 'b-ai')
 console.log('   探测:', JSON.stringify(pr.results[0]), '| 目录:', bai2.modelsCount, '免费:', bai2.freeCount)
 if (bai2.modelsCount === 0) { console.error('   ✗ 探测失败（代理没生效？需 NODE_USE_ENV_PROXY=1 https_proxy=…）'); process.exit(1) }
-if (bai2.freeCount !== 4) { console.error('   ✗ 免费标记数量不对，期望 4，实际', bai2.freeCount); process.exit(1) }
-console.log('   ✓ 探测经代理成功，freeModels 声明 4 个免费')
+if (bai2.freeCount !== 0) { console.error('   ✗ 免费标记数量不对，期望 0（2026-09-16 免费档失效），实际', bai2.freeCount); process.exit(1) }
+console.log('   ✓ 探测经代理成功（2026-09-16 复查：免费档失效，freeModels 已置空）')
 
 async function chat(model) {
   const parts = []
@@ -135,8 +135,8 @@ async function chat(model) {
   return { text: parts.join(''), err }
 }
 
-console.log('■ 2. 逐个实测 4 个免费模型（经插件流式）')
-for (const m of ['deepseek-v4-flash', 'hy3', 'mimo-v2.5', 'deepseek-v4-flash-vision-exp']) {
+console.log('■ 2. 逐个实测在列模型（2026-09-16 复查：免费档失效，零余额预期 insufficient_user_quota）')
+for (const m of ['hy3', 'mimo-v2.5']) {
   const r = await chat('b-ai/' + m)
   if (r.err) console.log('   ✗', m, '->', r.err.code, String(r.err.message).slice(0, 80))
   else console.log('   ✓', m, '->', JSON.stringify(r.text.slice(0, 30)))

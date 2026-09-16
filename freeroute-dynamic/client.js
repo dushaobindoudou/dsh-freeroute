@@ -1,4 +1,4 @@
-const CSS_VERSION = '0.8.16'
+const CSS_VERSION = '0.8.17'
 // 版本标记：sweepStaleStyles() 依此识别并清掉旧版本孤儿样式。
 const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
@@ -808,7 +808,7 @@ function Section(props) {
     '    "tutorial": "https://your.site/bai-tutorial",\n' +
     '    "api": "https://api.b.ai/v1",\n' +
     '    "apikey": ["sk-xxx"],\n' +
-    '    "freeModels": ["deepseek-v4-flash", "hy3"],\n' +
+    '    "freeModels": ["hy3", "mimo-v2.5"],\n' +
     '    "proxy": "http://127.0.0.1:7890"\n' +
     '  }\n' +
     ']'))

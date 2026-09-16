@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.17]
+
+### Changed
+
+- **免费模型目录 2026-09-16 全量复查**（live 探测 + 带 Key 实测）：
+  - **B.AI 免费档失效**：deepseek-v4-flash / deepseek-v4-flash-vision-exp 已
+    从 /models 下线；零余额账户实测全模型返回 insufficient_user_quota（含
+    旧免费款 hy3 / mimo-v2.5）。种子表 freeModels 置空、models 收敛为在列
+    2 款、defaultModel 改 hy3——B.AI 暂从免费路由退出（充值后可用性未验证）。
+  - 远程目录同步更新并部署（config.freetokenbox.com 与
+    freeroute-catalog.pages.dev 双源一致）：openrouter 新增
+    z-ai/glm-5.2:free 与 inclusionai/ling-3.0-flash-vl:free、移除两款
+    下线 minimax；amd-radeon 换血（Vision-Exp 下线，GLM-5.3-Flash /
+    Qwen3.8-27B 上新且实测出字，MinerU2.5-Pro 为 OCR 专用未收录）；
+    aihubmix minimax-m3-free 下线（54→53）；orcarouter 清理 qwen3.8-27b-free
+    （orcaverify-text1.0-free 为检测专用模型不收录）；nvidia 清理 minimax-m3。
+  - 高级设置 freeModels 示例与 test/e2e-bai.mjs 断言同步新现实。
+
 ## [0.8.16]
 
 ### Changed
