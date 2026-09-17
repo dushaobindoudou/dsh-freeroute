@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.18]
+
+### Changed
+
+- **Union Alpha stealth 预览接入**（2026-09-16 发布当日复核）：
+  - **openrouter 新增 `stealth/union-alpha`**：$0 计费实测出字（cost:0）、
+    262k 上下文、支持视觉、不占 `:free` 日额——freeModels 显式声明免费。
+  - **opencode 上新 `union-alpha` 但免费档启用客户端围栏**：API 直调无论
+    是否带 Key 均报 FreeTierError（「free tier can only be used from within
+    OpenCode」），7 款 -free 暂无法从第三方工具调用——freeModels 置空、
+    defaultModel 改 union-alpha，opencode 暂从免费路由退出（目录同步）。
+
 ## [0.8.17]
 
 ### Changed

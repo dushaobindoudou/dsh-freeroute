@@ -8,12 +8,15 @@ const BUILTIN_UPSTREAMS = [
     id: 'opencode', name: 'OpenCode Zen',
     baseUrl: 'https://opencode.ai/zen/v1', keyRef: 'FREEROUTE_OPENCODE_API_KEY',
     signupUrl: 'https://opencode.ai/zen',
-    note: '模型列表公开可探测（无需 Key）；“-free”后缀模型免费。',
-    // 2026-09-11 live：7 款现役 -free（hy3-free / x-preview-f-free /
-    // laguna-s-2.1-free 均已下线）。mimo-v2.5-free 快但额度易打满
-    // （FreeUsageLimit）；muse-spark 贡献者档并发紧；nemotron 系间歇 503。
-    defaultModel: 'deepseek-v4-flash-free',
+    note: '模型列表公开可探测（无需 Key）；“-free”后缀模型免费。2026-09-16 晚间复查：免费档启用客户端围栏，API 直调被拒，暂从免费路由退出。',
+    // 2026-09-16 晚间复查：union-alpha（stealth 预览）上新；免费档启用客户
+    // 端围栏——API 直调无论是否带 Key 均报 FreeTierError「free tier can only
+    // be used from within OpenCode」，7 款 -free 暂无法从第三方工具调用。
+    // （09-11 口径：mimo-v2.5-free 快但额度易打满；muse-spark 贡献者档并发紧。）
+    defaultModel: 'union-alpha',
+    freeModels: [],
     models: [
+      { id: 'union-alpha', name: 'Union Alpha (stealth preview)', contextWindow: 262144 },
       { id: 'deepseek-v4-flash-free', name: 'DeepSeek V4 Flash (free)', contextWindow: 131072 },
       { id: 'muse-spark-1.3-contributor-free', name: 'Muse Spark 1.3 Contributor (free)', contextWindow: 131072 },
       { id: 'muse-spark-1.2-contributor-free', name: 'Muse Spark 1.2 Contributor (free)', contextWindow: 131072 },
@@ -46,8 +49,12 @@ const BUILTIN_UPSTREAMS = [
     // 视觉模型带 inputModalities，供 dsh 放行图片输入；其余不声明（未知），
     // 图片原样透传由上游裁决。
     defaultModel: 'openrouter/free',
+    // stealth/union-alpha 不带 :free 后缀但 $0 计费（2026-09-16 实测出字
+    // cost:0，262k 视觉，不占 :free 日额），用 freeModels 显式声明免费。
+    freeModels: ['stealth/union-alpha'],
     models: [
       { id: 'openrouter/free', name: 'OpenRouter Free Router', contextWindow: 200000, inputModalities: ['text', 'image'] },
+      { id: 'stealth/union-alpha', name: 'Stealth: Union Alpha (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
       { id: 'inclusionai/ling-3.0-flash-vl:free', name: 'Ling 3.0 Flash VL (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
       { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
       { id: 'dots-studio/dots-3-note-preview:free', name: 'dots-3 Note Preview (free)', contextWindow: 512000, inputModalities: ['text', 'image'] },

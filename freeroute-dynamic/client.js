@@ -1,4 +1,4 @@
-const CSS_VERSION = '0.8.17'
+const CSS_VERSION = '0.8.18'
 // 版本标记：sweepStaleStyles() 依此识别并清掉旧版本孤儿样式。
 const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
