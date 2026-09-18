@@ -38,11 +38,12 @@ for (const [ep, m] of Object.entries(NAMES)) {
 src = mustReplace(src, 'host.call(method, args)', 'callHost(method, args)')
 if (src.includes('host.call')) throw new Error('residual host.call: ' + src.split('\n').filter((l) => l.includes('host.call')).join(' | ').slice(0, 120))
 
-// 2. Polling: sandbox timer service → native setInterval (real browser ctx).
-// Single-line marker appears in both Section and the models-page wrapper; the
-// replacement returns a disposer so the shared `d()` cleanup keeps working.
-src = mustReplace(src, 'const d = ctxRef.interval(tick, 5000)',
-  'const d = (function () { const h = setInterval(tick, 5000); return function () { clearInterval(h) } })()')
+// 2. Polling: the source now uses native setInterval directly (the restricted
+// dynamic client ctx has no timer mixin, so ctxRef.interval never worked there).
+// Guard that the invariant survived the concat instead of rewriting it.
+if (!src.includes('const d = (function () { const h = setInterval(tick, 5000)')) {
+  throw new Error('native interval polling missing from concatenated client source')
+}
 
 // 2b. lint: unused params
 src = mustReplace(src, 'function Section(props) {', 'function Section(_props) {')

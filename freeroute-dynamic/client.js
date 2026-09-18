@@ -384,7 +384,11 @@ function Section(props) {
       host.call('freeroute.state').then(function (v) { if (alive) setState(v) }).catch(function (e) { if (alive) setError(String((e && e.message) || e)) })
     }
     tick()
-    const d = ctxRef.interval(tick, 5000)
+    // Native timers, not ctx.interval: the restricted dynamic client ctx has
+    // no timer mixin (get/on/provide/effect only), so ctxRef.interval would
+    // TypeError at mount in the dynamic form. setInterval exists in every
+    // client evaluation environment; the disposer keeps the d() cleanup shape.
+    const d = (function () { const h = setInterval(tick, 5000); return function () { clearInterval(h) } })()
     return function () { alive = false; d() }
   }, [])
 

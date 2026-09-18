@@ -344,6 +344,26 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `.1`），宿主无 `fs`/`os` 注入时静默降级为 no-op。`src/host/` 与
   `src/client/` 下已无任何 `console.log`（仅 `scripts/`、`test/` 的构建与测试工具保留）。
 
+## [0.8.19] - 2026-09-18
+
+dsh 0.1.5-rc.2 compatibility release.
+
+### Fixed
+
+- **Dynamic client polling (P1)**: the dynamic client used
+  `ctxRef.interval(...)`, but the restricted dynamic client context exposes
+  only `get/on/provide/effect` — no timer mixin — so the panel crashed at
+  mount in the dynamic form (the static artifact already used
+  `setInterval`). The source now uses native `setInterval` directly with a
+  disposer, in every form (static, dynamic, and future rebuilds); the static
+  build script asserts the invariant instead of rewriting it.
+
+### Changed
+
+- `@deepseek-ai/dsh-typert-protocol` peer moved to `^0.1.5-rc.2` (the dsh
+  core convention; the old `>=0.1.0-rc.6 <0.2.0` range could never resolve to
+  0.1.5-rc.x under npm prerelease semantics).
+
 ## [Unreleased]
 
 ### Fixed
