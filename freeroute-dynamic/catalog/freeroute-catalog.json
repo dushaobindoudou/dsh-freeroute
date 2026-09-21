@@ -2,22 +2,16 @@
   "$schema": "https://raw.githubusercontent.com/dushaobindoudou/dsh-freeroute/main/freeroute-dynamic/catalog/schema.md",
   "name": "FreeRoute 免费模型目录",
   "version": 1,
-  "updatedAt": "2026-09-11",
+  "updatedAt": "2026-09-18",
   "description": "FreeRoute dsh 插件的远程上游目录（仓库内备份副本，与主源 config.freetokenbox.com/freeroute.json 同源）。托管到 Cloudflare Pages/R2/Workers 后，在插件设置里填入该 JSON 的 URL 即可免发版更新免费上游列表。同时兼容 models.dev 的 api.json 格式。默认只收录实测可用的免费上游；用户在面板里删除的上游不会被同步复活。模型可带 inputModalities: [\"text\",\"image\"]（或 vision: true）声明视觉输入；省略表示未知，图片原样透传给上游裁决。",
   "upstreams": [
     {
       "id": "orcarouter",
       "name": "OrcaRouter",
-      "baseUrl": "https://api.orcarouter.ai/v1",
+      "api": "https://api.orcarouter.ai/v1",
       "keyRef": "FREEROUTE_ORCA_API_KEY",
       "signupUrl": "https://orcarouter.ai",
-      "note": "免费档 2026-08-28 live 核实：orcarouter/free 自动路由（实为 deepseek-v4-flash，带 reasoning）+ deepseek-v4-flash-free / qwen3.8-27b-free / hy3-free，流式正常。 （2026-09-09 复查：z-ai/glm-5.3-flash-free 上新，qwen/qwen3.8-27b-free 下线）",
-      "freeModels": [
-        "deepseek/deepseek-v4-flash-free",
-        "orcarouter/free",
-        "tencent/hy3-free",
-        "z-ai/glm-5.3-flash-free"
-      ],
+      "note": "免费档 2026-08-28 live 核实：orcarouter/free 自动路由（实为 deepseek-v4-flash，带 reasoning）+ deepseek-v4-flash-free / qwen3.8-27b-free / hy3-free，流式正常。 （2026-09-09 复查：z-ai/glm-5.3-flash-free 上新，qwen/qwen3.8-27b-free 下线） （2026-09-16 复查：orca/orcaverify-text1.0-free 上新但为 AI 文本检测专用模型，非聊天未收录；qwen3.8-27b-free 仍未在列，已从 models 移除）",
       "defaultModel": "orcarouter/free",
       "models": [
         {
@@ -36,46 +30,27 @@
           "contextWindow": 131072
         },
         {
-          "id": "qwen/qwen3.8-27b-free",
-          "name": "Qwen: Qwen3.8 27B (free)",
-          "contextWindow": 65536
-        },
-        {
           "id": "z-ai/glm-5.3-flash-free",
           "name": "z-ai/glm-5.3-flash",
           "contextWindow": 32768
         }
+      ],
+      "freeModels": [
+        "deepseek/deepseek-v4-flash-free",
+        "orcarouter/free",
+        "tencent/hy3-free",
+        "z-ai/glm-5.3-flash-free"
       ]
     },
     {
       "id": "b-ai",
       "name": "B.AI",
-      "baseUrl": "https://api.b.ai/v1",
+      "api": "https://api.b.ai/v1",
       "keyRef": "FREEROUTE_BAI_API_KEY",
       "signupUrl": "https://chat.b.ai/chat?invite_code=2PLTB4",
-      "note": "4 款免费模型(2026-09-09 带鉴权 /models 实测在列,匿名请求 401);大陆网络通常需在自定义里配 proxy。",
-      "freeModels": [
-        "deepseek-v4-flash",
-        "deepseek-v4-flash-vision-exp",
-        "hy3",
-        "mimo-v2.5"
-      ],
-      "defaultModel": "deepseek-v4-flash",
+      "note": "注册送额度；大陆网络通常需在自定义里配 proxy。 （2026-09-16 复查：deepseek-v4-flash / deepseek-v4-flash-vision-exp 已从 /models 下线；零余额账户实测全部模型返回 insufficient_user_quota——免费档失效，充值后可用性未验证，暂从免费路由退出）",
+      "defaultModel": "hy3",
       "models": [
-        {
-          "id": "deepseek-v4-flash",
-          "name": "DeepSeek V4 Flash",
-          "contextWindow": 131072
-        },
-        {
-          "id": "deepseek-v4-flash-vision-exp",
-          "name": "DeepSeek V4 Flash Vision Exp",
-          "contextWindow": 131072,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
-        },
         {
           "id": "hy3",
           "name": "Hunyuan 3",
@@ -86,20 +61,16 @@
           "name": "MiMo v2.5",
           "contextWindow": 131072
         }
-      ]
+      ],
+      "freeModels": []
     },
     {
       "id": "sensenova",
       "name": "SenseNova 商汤日日新",
-      "baseUrl": "https://token.sensenova.cn/v1",
+      "api": "https://token.sensenova.cn/v1",
       "keyRef": "FREEROUTE_SENSENOVA_API_KEY",
       "signupUrl": "https://console.sensenova.cn",
       "note": "3 模型实测通过(2026-09-09 带鉴权 /models 确认在列);正确端点 token.sensenova.cn/v1(api.sensenova.cn 会 403)。",
-      "freeModels": [
-        "deepseek-v4-flash",
-        "sensenova-6.7-flash-lite",
-        "sensenova-6.8-flash-lite"
-      ],
       "defaultModel": "deepseek-v4-flash",
       "models": [
         {
@@ -117,19 +88,20 @@
           "name": "SenseNova 6.8 Flash Lite",
           "contextWindow": 262144
         }
+      ],
+      "freeModels": [
+        "deepseek-v4-flash",
+        "sensenova-6.7-flash-lite",
+        "sensenova-6.8-flash-lite"
       ]
     },
     {
       "id": "nvidia",
       "name": "NVIDIA NIM",
-      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "api": "https://integrate.api.nvidia.com/v1",
       "keyRef": "FREEROUTE_NVIDIA_API_KEY",
       "signupUrl": "https://build.nvidia.com",
-      "note": "3 款实测稳定（2026-08-28 复核；列表在列≠已开通——kimi-k2.6 未开通、deepseek 系挂起，不收录）。开发者免费额度约 1000 次/账号，国内可直连。 （2026-09-09 复查：minimaxai/minimax-m3 未见于 /models，保留声明待确认）",
-      "freeModels": [
-        "moonshotai/kimi-k3",
-        "nvidia/nemotron-3-super-120b-a12b"
-      ],
+      "note": "3 款实测稳定（2026-08-28 复核；列表在列≠已开通——kimi-k2.6 未开通、deepseek 系挂起，不收录）。开发者免费额度约 1000 次/账号，国内可直连。 （2026-09-09 复查：minimaxai/minimax-m3 未见于 /models，保留声明待确认） （2026-09-16 复查：moonshotai/kimi-k3 与 nvidia/nemotron-3-super-120b-a12b 仍在列；minimaxai/minimax-m3 已下线）",
       "defaultModel": "moonshotai/kimi-k3",
       "models": [
         {
@@ -138,69 +110,34 @@
           "contextWindow": 262144
         },
         {
-          "id": "minimaxai/minimax-m3",
-          "name": "MiniMax M3",
-          "contextWindow": 131072
-        },
-        {
           "id": "nvidia/nemotron-3-super-120b-a12b",
           "name": "Nemotron 3 Super 120B",
           "contextWindow": 131072
         }
+      ],
+      "freeModels": [
+        "moonshotai/kimi-k3",
+        "nvidia/nemotron-3-super-120b-a12b"
       ]
     },
     {
       "id": "openrouter",
       "name": "OpenRouter",
-      "baseUrl": "https://openrouter.ai/api/v1",
+      "api": "https://openrouter.ai/api/v1",
       "keyRef": "FREEROUTE_OPENROUTER_API_KEY",
       "signupUrl": "https://openrouter.ai/settings/keys",
-      "note": "18 款现役免费档（2026-08-28 live 同步，含 openrouter/free 自动路由）；content-safety 分类器不收录。未充值约 50 次/天。 （2026-09-09 复查：新增 ling-3.0-flash-sante / nex-n2.5-mini / nex-n2.5-pro / nemotron-3.5-content-safety；z-ai/glm-5.2、minimax-m3、minimax-m2.7 从列表消失）",
-      "freeModels": [
-        "thinkingmachines/inkling-small:free",
-        "thinkingmachines/inkling:free",
-        "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "nvidia/nemotron-3.5-lightning:free",
-        "dots-studio/dots-3-note-preview:free",
-        "google/gemma-4-26b-a4b-it:free",
-        "google/gemma-4-31b-it:free",
-        "inclusionai/ling-3.0-flash-fin:free",
-        "inclusionai/ling-3.0-flash-sante:free",
-        "nex-agi/nex-n2.5-mini:free",
-        "nex-agi/nex-n2.5-pro:free",
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "poolside/laguna-s-2.1:free",
-        "poolside/laguna-xs-2.1:free",
-        "cohere/north-mini-code:free",
-        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-        "openrouter/free",
-        "nvidia/nemotron-3.5-content-safety:free",
-        "liquid/lfm-2.5-2.6b:free"
-      ],
+      "note": "18 款现役免费档（2026-08-28 live 同步，含 openrouter/free 自动路由）；content-safety 分类器不收录。未充值约 50 次/天。 （2026-09-09 复查：新增 ling-3.0-flash-sante / nex-n2.5-mini / nex-n2.5-pro / nemotron-3.5-content-safety；z-ai/glm-5.2、minimax-m3、minimax-m2.7 从列表消失） （2026-09-16 复查：z-ai/glm-5.2:free 与 inclusionai/ling-3.0-flash-vl:free 上新；minimax-m3:free / minimax-m2.7:free 下线；openrouter/free 仍在列） （2026-09-16 晚间复查：stealth/union-alpha 上新——union-alpha stealth 预览，$0 计费实测出字（cost:0），262k 视觉，不占 :free 日额）",
       "defaultModel": "openrouter/free",
       "models": [
         {
-          "id": "minimax/minimax-m3:free",
-          "name": "MiniMax: MiniMax M3",
-          "contextWindow": 1048576
-        },
-        {
           "id": "thinkingmachines/inkling-small:free",
           "name": "Thinking Machines: Inkling Small",
-          "contextWindow": 1048576,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 1048576
         },
         {
           "id": "thinkingmachines/inkling:free",
           "name": "Thinking Machines: Inkling",
-          "contextWindow": 1048576,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 1048576
         },
         {
           "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -215,29 +152,17 @@
         {
           "id": "dots-studio/dots-3-note-preview:free",
           "name": "Dots Studio: Dots3-Note Preview",
-          "contextWindow": 512000,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 512000
         },
         {
           "id": "google/gemma-4-26b-a4b-it:free",
           "name": "Google: Gemma 4 26B A4B",
-          "contextWindow": 262144,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 262144
         },
         {
           "id": "google/gemma-4-31b-it:free",
           "name": "Google: Gemma 4 31B",
-          "contextWindow": 262144,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 262144
         },
         {
           "id": "inclusionai/ling-3.0-flash-fin:free",
@@ -252,20 +177,12 @@
         {
           "id": "nex-agi/nex-n2.5-mini:free",
           "name": "nex-agi/nex-n2.5-mini",
-          "contextWindow": 262144,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 262144
         },
         {
           "id": "nex-agi/nex-n2.5-pro:free",
           "name": "nex-agi/nex-n2.5-pro",
-          "contextWindow": 262144,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 262144
         },
         {
           "id": "nvidia/nemotron-3-super-120b-a12b:free",
@@ -290,11 +207,7 @@
         {
           "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
           "name": "NVIDIA: Nemotron 3 Nano Omni",
-          "contextWindow": 256000,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 256000
         },
         {
           "id": "z-ai/glm-5.2:free",
@@ -304,88 +217,104 @@
         {
           "id": "openrouter/free",
           "name": "Free Models Router",
-          "contextWindow": 200000,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
-        },
-        {
-          "id": "minimax/minimax-m2.7:free",
-          "name": "MiniMax: MiniMax M2.7",
-          "contextWindow": 196608
+          "contextWindow": 200000
         },
         {
           "id": "nvidia/nemotron-3.5-content-safety:free",
           "name": "nvidia/nemotron-3.5-content-safety",
-          "contextWindow": 128000,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 128000
         },
         {
           "id": "liquid/lfm-2.5-2.6b:free",
           "name": "LiquidAI: LFM2.5-2.6B",
           "contextWindow": 65536
+        },
+        {
+          "id": "inclusionai/ling-3.0-flash-vl:free",
+          "name": "InclusionAI: Ling 3.0 Flash VL (free)",
+          "contextWindow": 262144,
+          "inputModalities": [
+            "text",
+            "image"
+          ]
+        },
+        {
+          "id": "z-ai/glm-5.2:free",
+          "name": "Z.ai: GLM 5.2 (free)",
+          "contextWindow": 32768
+        },
+        {
+          "id": "stealth/union-alpha",
+          "name": "Stealth: Union Alpha (free)",
+          "contextWindow": 262144,
+          "inputModalities": [
+            "text",
+            "image"
+          ]
         }
+      ],
+      "freeModels": [
+        "cohere/north-mini-code:free",
+        "dots-studio/dots-3-note-preview:free",
+        "google/gemma-4-26b-a4b-it:free",
+        "google/gemma-4-31b-it:free",
+        "inclusionai/ling-3.0-flash-fin:free",
+        "inclusionai/ling-3.0-flash-sante:free",
+        "inclusionai/ling-3.0-flash-vl:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "nex-agi/nex-n2.5-mini:free",
+        "nex-agi/nex-n2.5-pro:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-content-safety:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "openrouter/free",
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free",
+        "thinkingmachines/inkling-small:free",
+        "thinkingmachines/inkling:free",
+        "z-ai/glm-5.2:free",
+        "stealth/union-alpha"
       ]
     },
     {
       "id": "zenmux",
       "name": "ZenMux",
-      "baseUrl": "https://zenmux.ai/api/v1",
+      "api": "https://zenmux.ai/api/v1",
       "keyRef": "FREEROUTE_ZENMUX_API_KEY",
       "signupUrl": "https://zenmux.ai/invite/ZBZNOZ",
       "note": "2 款免费 GLM（2026-08-28 live 同步，glm-4.6v 含视觉）；限流紧（分钟级 429，30-60s 恢复），适合轮换候选。",
-      "freeModels": [
-        "z-ai/glm-4.6v-flash-free",
-        "z-ai/glm-4.7-flash-free"
-      ],
       "defaultModel": "z-ai/glm-4.7-flash-free",
       "models": [
         {
           "id": "z-ai/glm-4.6v-flash-free",
           "name": "Z.AI: GLM 4.6V Flash (Free)",
-          "contextWindow": 200000,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
+          "contextWindow": 200000
         },
         {
           "id": "z-ai/glm-4.7-flash-free",
           "name": "Z.AI: GLM 4.7 Flash (Free)",
           "contextWindow": 200000
         }
+      ],
+      "freeModels": [
+        "z-ai/glm-4.6v-flash-free",
+        "z-ai/glm-4.7-flash-free"
       ]
     },
     {
       "id": "opencode",
       "name": "OpenCode Zen",
-      "baseUrl": "https://opencode.ai/zen/v1",
+      "api": "https://opencode.ai/zen/v1",
       "keyRef": "FREEROUTE_OPENCODE_API_KEY",
       "signupUrl": "https://opencode.ai/zen",
-      "note": "7 款现役 -free（2026-08-28 live 同步：hy3-free 下线，ling-3.0-flash-fin-free 上新）。免费额度疑似按天滚动，打满自动冷却切其他上游。 （2026-09-09 复查：muse-spark-1.3-contributor-free 上新，laguna-s-2.1-free 下线）",
-      "freeModels": [
-        "deepseek-v4-flash-free",
-        "ling-3.0-flash-fin-free",
-        "mimo-v2.5-free",
-        "muse-spark-1.2-contributor-free",
-        "muse-spark-1.3-contributor-free",
-        "nemotron-3-ultra-free",
-        "nemotron-3.5-lightning-free"
-      ],
+      "note": "7 款现役 -free（2026-08-28 live 同步：hy3-free 下线，ling-3.0-flash-fin-free 上新）。免费额度疑似按天滚动，打满自动冷却切其他上游。 （2026-09-09 复查：muse-spark-1.3-contributor-free 上新，laguna-s-2.1-free 下线） （2026-09-16 复查：7 款 -free 全部在列，models 收录清理 laguna-s-2.1-free） （2026-09-16 晚间复查：union-alpha stealth 预览上新；免费档启用客户端围栏——API 直调无论是否带 Key 均报 FreeTierError「free tier can only be used from within OpenCode」或上游不可用，7 款 -free 暂无法从第三方工具调用，freeModels 置空待观察）",
       "defaultModel": "deepseek-v4-flash-free",
       "models": [
         {
           "id": "deepseek-v4-flash-free",
           "name": "deepseek-v4-flash (free)",
-          "contextWindow": 131072
-        },
-        {
-          "id": "laguna-s-2.1-free",
-          "name": "laguna-s-2.1 (free)",
           "contextWindow": 131072
         },
         {
@@ -417,72 +346,22 @@
           "id": "muse-spark-1.3-contributor-free",
           "name": "muse-spark-1.3-contributor",
           "contextWindow": 32768
+        },
+        {
+          "id": "union-alpha",
+          "name": "Union Alpha (stealth preview)",
+          "contextWindow": 262144
         }
-      ]
+      ],
+      "freeModels": []
     },
     {
       "id": "aihubmix",
       "name": "AIHubMix",
-      "baseUrl": "https://aihubmix.com/v1",
+      "api": "https://aihubmix.com/v1",
       "keyRef": "FREEROUTE_AIHUBMIX_API_KEY",
       "signupUrl": "https://aihubmix.com",
-      "note": "51 款 -free（2026-08-28 live 同步，models 收录前 24）；未充值账号仅 10 次试用，充值后免费模型不再计次；国内网络需代理。 （2026-09-09 复查：免费列表扩至 54 款，含 gemini-3.8-flash-free / gpt-image-2-free 等新款）",
-      "freeModels": [
-        "coding-glm-4.6-free",
-        "coding-glm-4.7-free",
-        "coding-glm-5-free",
-        "coding-glm-5-turbo-free",
-        "coding-glm-5.1-free",
-        "coding-glm-5.2-free",
-        "coding-glm-5.3-free",
-        "coding-kimi-k3-free",
-        "coding-minimax-m2-free",
-        "coding-minimax-m2.1-free",
-        "coding-minimax-m2.5-free",
-        "coding-minimax-m2.7-free",
-        "coding-minimax-m3-free",
-        "dots-3-note-preview-free",
-        "gemini-3-flash-preview-free",
-        "gemini-3.5-flash-lite-free",
-        "gemini-3.6-flash-free",
-        "gemini-3.7-flash-free",
-        "gemini-3.8-flash-free",
-        "gemma-4-26b-a4b-it-free",
-        "gemma-4-31b-it-free",
-        "glm-4.7-flash-free",
-        "gpt-4.1-free",
-        "gpt-4.1-mini-free",
-        "gpt-4.1-nano-free",
-        "gpt-4o-free",
-        "gpt-5.5-free",
-        "gpt-image-2-free",
-        "gpt-oss-20b-free",
-        "hy3-free",
-        "k2.6-code-preview-free",
-        "kimi-for-coding-free",
-        "laguna-s-2.1-free",
-        "laguna-xs-2.1-free",
-        "lfm-2.5-2.6b-free",
-        "ling-3.0-flash-free",
-        "ling-3.0-tiny-free",
-        "mimo-v2-flash-free",
-        "minimax-m2.7-free",
-        "minimax-m3-free",
-        "nemotron-3-nano-30b-a3b-free",
-        "nemotron-3-nano-omni-30b-a3b-reasoning-free",
-        "nemotron-3-super-120b-a12b-free",
-        "nemotron-3-ultra-550b-a55b-free",
-        "nemotron-3.5-content-safety-free",
-        "nemotron-3.5-lightning-free",
-        "nemotron-nano-12b-v2-vl-free",
-        "nemotron-nano-9b-v2-free",
-        "north-mini-code-free",
-        "qwen3.6-plus-preview-free",
-        "xiaomi-mimo-v2-omni-free",
-        "xiaomi-mimo-v2-pro-free",
-        "xiaomi-mimo-v2.5-free",
-        "xiaomi-mimo-v2.5-pro-free"
-      ],
+      "note": "51 款 -free（2026-08-28 live 同步，models 收录前 24）；未充值账号仅 10 次试用，充值后免费模型不再计次；国内网络需代理。 （2026-09-09 复查：免费列表扩至 54 款，含 gemini-3.8-flash-free / gpt-image-2-free 等新款） （2026-09-16 复查：minimax-m3-free 下线，免费列表 54→53）（2026-09-18 复查：live /models 对齐——gemini-3-flash-preview-free、gemini-3.5/3.6/3.7/3.8-flash-free、gemma-4-26b/31b-free、gpt-4.1(-mini/-nano)-free、gpt-4o-free、gpt-5.5-free、gpt-image-2-free、gpt-oss-20b-free 共 14 款已从上游下架移除；新上 agents-a1-free / intern-s2-free / union-alpha-free（按 -free 命名收录，计费未实测）。免费列表 53→42。）",
       "defaultModel": "coding-glm-5.3-free",
       "models": [
         {
@@ -503,35 +382,6 @@
         {
           "id": "dots-3-note-preview-free",
           "name": "dots-3-note-preview (free)",
-          "contextWindow": 131072
-        },
-        {
-          "id": "gemini-3.5-flash-lite-free",
-          "name": "gemini-3.5-flash-lite (free)",
-          "contextWindow": 131072
-        },
-        {
-          "id": "gemini-3.6-flash-free",
-          "name": "gemini-3.6-flash (free)",
-          "contextWindow": 131072,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
-        },
-        {
-          "id": "gemini-3.7-flash-free",
-          "name": "gemini-3.7-flash (free)",
-          "contextWindow": 131072
-        },
-        {
-          "id": "gemma-4-31b-it-free",
-          "name": "gemma-4-31b-it (free)",
-          "contextWindow": 131072
-        },
-        {
-          "id": "gpt-oss-20b-free",
-          "name": "gpt-oss-20b (free)",
           "contextWindow": 131072
         },
         {
@@ -570,11 +420,6 @@
           "contextWindow": 131072
         },
         {
-          "id": "minimax-m3-free",
-          "name": "minimax-m3 (free)",
-          "contextWindow": 131072
-        },
-        {
           "id": "nemotron-3-nano-omni-30b-a3b-reasoning-free",
           "name": "nemotron-3-nano-omni-30b-a3b-reasoning (free)",
           "contextWindow": 131072
@@ -608,18 +453,75 @@
           "id": "north-mini-code-free",
           "name": "north-mini-code (free)",
           "contextWindow": 131072
+        },
+        {
+          "id": "agents-a1-free",
+          "name": "agents-a1-free (free)",
+          "contextWindow": 131072
+        },
+        {
+          "id": "intern-s2-free",
+          "name": "intern-s2-free (free)",
+          "contextWindow": 131072
+        },
+        {
+          "id": "union-alpha-free",
+          "name": "union-alpha-free (free)",
+          "contextWindow": 131072
         }
+      ],
+      "freeModels": [
+        "agents-a1-free",
+        "coding-glm-4.6-free",
+        "coding-glm-4.7-free",
+        "coding-glm-5-free",
+        "coding-glm-5-turbo-free",
+        "coding-glm-5.1-free",
+        "coding-glm-5.2-free",
+        "coding-glm-5.3-free",
+        "coding-kimi-k3-free",
+        "coding-minimax-m2-free",
+        "coding-minimax-m2.1-free",
+        "coding-minimax-m2.5-free",
+        "coding-minimax-m2.7-free",
+        "coding-minimax-m3-free",
+        "dots-3-note-preview-free",
+        "glm-4.7-flash-free",
+        "hy3-free",
+        "intern-s2-free",
+        "k2.6-code-preview-free",
+        "kimi-for-coding-free",
+        "laguna-s-2.1-free",
+        "laguna-xs-2.1-free",
+        "lfm-2.5-2.6b-free",
+        "ling-3.0-flash-free",
+        "ling-3.0-tiny-free",
+        "mimo-v2-flash-free",
+        "minimax-m2.7-free",
+        "nemotron-3-nano-30b-a3b-free",
+        "nemotron-3-nano-omni-30b-a3b-reasoning-free",
+        "nemotron-3-super-120b-a12b-free",
+        "nemotron-3-ultra-550b-a55b-free",
+        "nemotron-3.5-content-safety-free",
+        "nemotron-3.5-lightning-free",
+        "nemotron-nano-12b-v2-vl-free",
+        "nemotron-nano-9b-v2-free",
+        "north-mini-code-free",
+        "qwen3.6-plus-preview-free",
+        "union-alpha-free",
+        "xiaomi-mimo-v2-omni-free",
+        "xiaomi-mimo-v2-pro-free",
+        "xiaomi-mimo-v2.5-free",
+        "xiaomi-mimo-v2.5-pro-free"
       ]
     },
     {
       "id": "askdiandian",
       "name": "点点笔记预览 (dots3)",
-      "baseUrl": "https://note3-prev-api.askdiandian.com/v1",
+      "api": "https://note3-prev-api.askdiandian.com/v1",
       "keyRef": "FREEROUTE_ASKDIANDIAN_API_KEY",
+      "signupUrl": "",
       "note": "单模型 dots3-note-prev（笔记/推理向）实测通过；Authorization Bearer 与 api-key 头均可。",
-      "freeModels": [
-        "dots3-note-prev"
-      ],
       "defaultModel": "dots3-note-prev",
       "models": [
         {
@@ -627,21 +529,18 @@
           "name": "Dots3 Note Preview",
           "contextWindow": 131072
         }
+      ],
+      "freeModels": [
+        "dots3-note-prev"
       ]
     },
     {
       "id": "amd-radeon",
       "name": "AMD Radeon 开发者",
-      "baseUrl": "https://developer.amd.com.cn/radeon/api/v1",
+      "api": "https://developer.amd.com.cn/radeon/api/v1",
       "keyRef": "FREEROUTE_AMD_RADEON_KEY",
       "signupUrl": "https://developer.amd.com.cn/radeon",
-      "note": "4 款模型每日 $1 USD 免费额度 + 20 RPM/用户(2026-09-09 实测出字与流式);DeepSeek-V4-Flash 并发上限 80,满时 429 由插件按 RATE_LIMIT 转移;1M 窗口;Qwen3.8 与 Vision-Exp 支持视觉;国内直连,注册 developer.amd.com.cn 领取 rc- 开头 Key。",
-      "freeModels": [
-        "DeepSeek-V4-Flash",
-        "DeepSeek-V4-Flash-Vision-Exp",
-        "Qwen3.8-Flash-Next",
-        "MiniCPM5-2B"
-      ],
+      "note": "4 款模型每日 $1 USD 免费额度 + 20 RPM/用户(2026-09-09 实测出字与流式);DeepSeek-V4-Flash 并发上限 80,满时 429 由插件按 RATE_LIMIT 转移;1M 窗口;Qwen3.8 与 Vision-Exp 支持视觉;国内直连,注册 developer.amd.com.cn 领取 rc- 开头 Key。 （2026-09-16 复查：DeepSeek-V4-Flash-Vision-Exp 下线；GLM-5.3-Flash / Qwen3.8-27B 上新（Qwen3.8-27B 实测 200 出字，GLM-5.3-Flash 429 限流中）；MinerU2.5-Pro 为 OCR 专用未收录；Qwen3.8 双款支持视觉）",
       "defaultModel": "DeepSeek-V4-Flash",
       "models": [
         {
@@ -650,9 +549,14 @@
           "contextWindow": 1048576
         },
         {
-          "id": "DeepSeek-V4-Flash-Vision-Exp",
-          "name": "DeepSeek V4 Flash Vision (Exp)",
-          "contextWindow": 1048576,
+          "id": "GLM-5.3-Flash",
+          "name": "GLM 5.3 Flash",
+          "contextWindow": 262144
+        },
+        {
+          "id": "Qwen3.8-27B",
+          "name": "Qwen3.8 27B",
+          "contextWindow": 262144,
           "inputModalities": [
             "text",
             "image"
@@ -669,9 +573,16 @@
         },
         {
           "id": "MiniCPM5-2B",
-          "name": "MiniCPM 5 2B",
+          "name": "MiniCPM5 2B",
           "contextWindow": 131072
         }
+      ],
+      "freeModels": [
+        "DeepSeek-V4-Flash",
+        "GLM-5.3-Flash",
+        "Qwen3.8-27B",
+        "Qwen3.8-Flash-Next",
+        "MiniCPM5-2B"
       ]
     }
   ]

@@ -4,6 +4,36 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.20]
+
+### Changed
+
+- **免费模型目录 2026-09-18 复查**（live `/models` 全上游探测）：
+  - **aihubmix 免费列表 53→42**：`gemini-3-flash-preview-free`、
+    `gemini-3.5/3.6/3.7/3.8-flash-free`、`gemma-4-26b/31b-it-free`、
+    `gpt-4.1(-mini/-nano)-free`、`gpt-4o-free`、`gpt-5.5-free`、
+    `gpt-image-2-free`、`gpt-oss-20b-free` 共 14 款已从上游 `/models`
+    下架（delisted 即无法路由，先于计费验证移除）；新上
+    `agents-a1-free` / `intern-s2-free` / `union-alpha-free`（按上游
+    `-free` 命名收录，计费未实测，models 元数据沿用 131072 约定）。
+  - **仓库种子目录与远程同源对齐**：`freeroute-dynamic/catalog/
+    freeroute-catalog.json` 此前停留在 2026-09-11 状态（b.ai 免费档
+    未置空、openrouter 缺 09-16 新款、orcarouter 已下线的
+    qwen3.8-27b-free 未移除、字段仍用旧名 `baseUrl`），现与主源
+    config.freetokenbox.com 完全同步（`api` 字段名，解析器两者兼容），
+    并叠加本次 aihubmix 复查；解析器实测通过（10 上游全部正常归一化）。
+  - 其余上游 live 复核无变化：orcarouter 4 款、nvidia 2 款、zenmux 2 款、
+    opencode（围栏维持置空）、askdiandian 1 款全部在列；
+    openrouter `stealth/union-alpha` 不进 `/models` 属 stealth 预期，
+    维持收录；b.ai / sensenova / amd-radeon 需鉴权，维持 09-16 结论。
+  - **注意**：远程源（config.freetokenbox.com 与
+    freeroute-catalog.pages.dev）需重新部署后本次 aihubmix 修订才对
+    运行时生效；仓库内种子先行落盘。
+
+### Dependencies
+
+- eslint 10.9.0 → 10.11.0、@deepseek-ai/cordis 4.0.1 → 4.0.2（lint/test 全绿）。
+
 ## [0.8.18]
 
 ### Changed
