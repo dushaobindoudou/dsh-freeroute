@@ -4,6 +4,36 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.21]
+
+### Changed
+
+- **免费模型目录 2026-09-22 复查——mimo v2.6 系转免费**（live `/models` 全上游探测 + 带 Key 差分计费实测）：
+  - **aihubmix 42→44**：`xiaomi-mimo-v2.6-flash-free` / `xiaomi-mimo-v2.6-pro-free`
+    上新收录（`/models` 在列 + `-free` 命名契约；实测命中「未充值仅 10 次试用」
+    的账号级试用门——既有免费款 coding-glm-5.3-free 同样命中，证明非模型级拒绝）。
+    `ling-3.0-flash-free` 暂报 cannot be served（仍在 `/models`，观察项保留）。
+  - **sensenova 3→6**：`sensenova-6.7-flash-lite` 已从 `/models` 下架，先于计费
+    验证移除；`glm-5.2` / `kimi-k3` / `deepseek-v4-pro` / `deepseek-flash` 四款
+    pricing=0 且实测 200 出字，新收入免费档；`u1-fast` / `u1.5-lite` 虽
+    pricing=0 但当前账号 plan 未开放（404）、`deepseek-v4.1-flash` 被 plan 门
+    403 拒绝，均暂不收录。
+  - **openrouter 22→23**：`qwen/qwen3.8-27b:free` 上新（$0 定价、262k、
+    text+image+video；实测连续 429 拥挤，交由插件冷却切换）。
+  - **amd-radeon 5→6**：`DeepSeek-V4.1-Flash` 上新，实测 200 出字（含视觉，
+    1048k 窗），纳入每日 $1 免费额度；MinerU2.5-Pro 仍为 OCR 专用未收录。
+  - **b.ai 免费档未恢复**：`mimo-v2.5` / `mimo-v2.5-pro` 实测为付费款（零余额
+    报 credit insufficient balance：单次 58/1748 credits），维持免费路由退出。
+  - **opencode 客户端围栏依旧**：`mimo-v2.5-free` / `mimo-v2.6-flash-free`
+    实测 403 FreeTierError；`mimo-v2.6-flash-free` / `jev-1.13-free` 上新先录
+    models 待围栏解除。
+  - **远程双源已部署生效**（config.freetokenbox.com 与 freeroute-catalog.pages.dev
+    双域实测与种子逐字节一致），并补上了 0.8.20 欠下的部署；本地 runtime
+    `~/.dsh/freeroute.json` 的 custom 四字段（freeModels/models/defaultModel/note）
+    已按目录同步（gmi 手工上游不属目录管辖，未触碰）。
+  - 其余上游 live 复核无变化：orcarouter（orcaverify 系文本检测器不收录）、
+    nvidia、zenmux、askdiandian 全部在列。
+
 ## [0.8.20]
 
 ### Changed
