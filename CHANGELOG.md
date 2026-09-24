@@ -4,6 +4,36 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.23]
+
+### Changed
+
+- **适配 dsh 0.1.7-rc.1**（对照 0.1.5-rc.3 逐包排查；tarball 解包比对，未安装）：
+  - **settings 服务重写适配**（0.1.7 移除 settings.yaml 章节，改由插件 Config
+    声明 + profile patch 驱动，`settings.update/replace/mutate` 对未知 ns 一律
+    抛 `No configurable plugin entry`）：
+    - `boot.js`：`settings.register` 特性检测——≤0.1.5 走注册+watch 回退；
+      ≥0.1.7 静默跳过并**以默认值落盘配置文件**，使 applyPatch/setKey 等
+      全部 RPC 写路径继续走文件模式（否则新装环境配置写入全断）。
+    - `takeover.js`：`userDefaultExplicit()` 特性检测——新版 `settings.section`
+      读 API 已移除，改走 `describe()` 用户层投影（row.user）；否则会静默
+      失真导致自动接管覆盖用户显式默认模型（v0.7.2 接管纪律回归）。
+  - **其余契约逐一核实兼容**：llm 适配器接口（providerInfo/providerRetryPolicy/
+    listModels/resolveModel/prepareCall/stream 逐方法一致，新增
+    imageRequestPricing 带默认实现）、harness.handle、webServer.register/port、
+    credentials set/unset/describe/resolve、subprocess spawn/resolveExecutable、
+    agentDefaultModel saveSelection/currentSelection（provider/model 仍为
+    Volatile 可 mutate）、客户端 `settings.section` 插槽契约、typert-protocol
+    API（超集兼容）。
+  - **安装门核实**：0.1.7 插件管理器按 `semver.satisfies(runtime, peer,
+    {includePrerelease: true})` 校验 `@deepseek-ai/dsh-*` peer——现有
+    `^0.1.5-rc.2` 满足 0.1.7-rc.1；peer 放宽为 `>=0.1.5-rc.2` 表达前向兼容。
+  - deps：devDependencies `@deepseek-ai/dsh-typert-protocol` 0.1.5-rc.2 →
+    0.1.7-rc.1、`@deepseek-ai/cordis` ^4.0.2 → ^4.0.4（随宿主对齐）。
+  - 验证：smoke 全过、client-integration 51 项全过；另以新式 settings mock
+    （无 register/section）双案例实证——默认值落盘后接管正常触发、用户显式
+    默认不被打扰。
+
 ## [0.8.22]
 
 ### Changed

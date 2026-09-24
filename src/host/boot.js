@@ -6,7 +6,11 @@
         configFileOk = true
         userConfig = sanitizeConfig(raw)
         importDeclaredKeys(raw).catch(function () { })
-      } else if (settings !== undefined) {
+      } else if (settings !== undefined && typeof settings.register === 'function') {
+        // dsh ≤0.1.5：注册 free-proxy 章节 + watch 回退（文件不可写时以 settings 为源）。
+        // dsh ≥0.1.7 移除 settings.register（章节改由插件 Config 声明 + profile
+        // patch 驱动）——本插件文件优先、设置面板独立挂载，无需章节注册；
+        // 此处静默跳过，走 sanitizeConfig({}) 默认值。
         try {
           const scope = settings.register(NS, ConfigSchema)
           const seeded = sanitizeConfig(scope.get())
@@ -33,6 +37,15 @@
             })
           }
         } catch (e) { console.error('[freeroute] settings 注册失败:', emsg(e)) }
+      } else if (settings !== undefined) {
+        // dsh ≥0.1.7：settings.register 已移除（章节改由插件 Config 声明 +
+        // profile patch 驱动，'free-proxy' 这类第三方命名章节无法再注册，
+        // settings.update/replace 对未知 ns 一律抛 No configurable plugin
+        // entry——applyPatch 等全部 RPC 写路径的 settings 回退都会死）。
+        // 文件优先模式下直接以默认值落盘，让全部配置写入走文件路径；
+        // 落盘失败才退回 settings 语义（新版必拒，RPC 层已有兜底报错）。
+        userConfig = sanitizeConfig({})
+        if (configPath && fsx !== null && writeConfigFile()) configFileOk = true
       }
     }
     if (configFileOk) log('[freeroute] 配置文件:', configPath)
