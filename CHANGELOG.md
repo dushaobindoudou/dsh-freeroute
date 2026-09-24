@@ -4,6 +4,27 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.22]
+
+### Changed
+
+- **免费模型目录 2026-09-24 复查**（live `/models` 全上游探测 + 带 Key 差分计费实测）：
+  - **amd-radeon 换血**：`DeepSeek-V4.1-Flash` 上架仅一日即从 `/models` 下架移除；
+    `MiMo-V2.6-Flash` 上新，实测 200 过计费门（1048k 窗、text+image 视觉），
+    纳入每日 $1 免费额度——mimo v2.6 免费使用面从 aihubmix 扩到 amd-radeon。
+  - **opencode 围栏按款放行**：`space-bunny-free` 实测 200 出字，收入免费档
+    （围栏不再是上游级一刀切）；其余 -free 款实测仍 403 FreeTierError。
+  - **openrouter**：`inclusionai/ling-3.0-flash-vl:free` 已从 `/models` 下架移除。
+  - **b.ai**：`mimo-v2.6-flash` / `mimo-v2.6-pro` 上新仍为付费款（零余额 400
+    insufficient balance：562/1748 credits）；`jev-latest` / `jev-1.13.0` 为
+    `/v1/decisions` 专用端点非 chat，不收录。
+  - **aihubmix**：44 款免费列表无变化；`ling-3.0-flash-free` 连续两日报
+    no_available_channel（仍在 `/models`，持续观察）。
+  - 远程双源已部署生效（双域实测与种子逐字节一致）；本地 runtime custom
+    四字段已按目录同步。
+  - 其余上游 live 复核无变化：orcarouter（新上均为付费款，orcaverify 系
+    检测器仍不收录）、sensenova、nvidia、zenmux、askdiandian。
+
 ## [0.8.21]
 
 ### Changed
