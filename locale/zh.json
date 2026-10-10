@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "FreeRoute",
+    "description": "聚合免费额度与自建模型上游：透明故障切换、多 Key 轮换、OpenAI 兼容端点"
+  }
+}

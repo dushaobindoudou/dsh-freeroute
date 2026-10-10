@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "FreeRoute",
+    "description": "Aggregate free-tier and custom model upstreams with transparent failover and key rotation"
+  }
+}

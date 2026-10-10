@@ -4,6 +4,47 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.24]
+
+### Changed
+
+- **目录 2026-10-10 全上游 live 复查**（10 上游逐一 `/models` + chat 实测；
+  远程双源已部署生效，旧版插件免升级热拉取，本版同步仓库备份副本）：
+  - **openrouter**：ling-3.0-flash-fin/-sante、nex-n2.5-mini/pro、
+    qwen3.8-27b、z-ai/glm-5.2、stealth/union-alpha delisted 移除；
+    apodex-1.1-mini:free 上新收录；inkling 系启用 agentic harness 围栏
+    （带 referer/title 头仍 403）暂保留观察；gemma-4 系 / laguna-xs 为
+    上游共享池 429（暂时性）；8 款按 /models 元数据补视觉声明。
+  - **opencode**：围栏依旧（space-bunny-free 仍唯一实测 200）；
+    deepseek-v4-flash-free / ling-3.0-flash-fin-free / mimo-v2.5-free /
+    nemotron-3-ultra-free / union-alpha 下架移除；ling-3.1-flash-free /
+    step-5-preview-free / longcat-2.5-preview-free 上新（围栏未解 403）；
+    默认模型切至 space-bunny-free。
+  - **nvidia**：glm-5.3 / glm-5.3-flash / gpt-oss-20b / laguna-xs-2.1 /
+    nemotron-3-ultra-550b / nemotron-3.5-lightning-30b 实测 200 收入
+    （2→8 款）；默认模型切至 nemotron-3-super-120b-a12b（kimi-k3 当日
+    3 连超时观察，90s 无首字）；deepseek-v4.1-flash / gemma-4-31b 两轮
+    超时、nano-3 系 404、nano-omni 503 暂不收录。
+  - **orcarouter**：tencent/hy4-preview-free 上新收录；orcarouter/free
+    实测 free_quota_exhausted（日额度耗尽，非下架）；其余 -free 系撞
+    新围栏 free_rate_limited——要求绑定有一定注册时长的 GitHub 账号。
+  - **aihubmix**：免费面 44 款；ling-3.0-flash-free 连续三轮
+    no_available_channel 移出 models；glm-4.7-flash-free / kimi-for-coding-free /
+    k2.6-code-preview-free / qwen3.6-plus-preview-free / coding-minimax-m3-free /
+    xiaomi-mimo-v2.5(-pro)-free 收入 models；本账号 10 次试用已耗尽
+    （HTTP 200 但回试用提示、0 token），充值后恢复。
+  - **amd-radeon**：DeepSeek-V4.1-Flash 重新上架实测 200 收回；
+    DeepSeek-V4-Flash-Vision-Exp 实测 200 收回（均 1M 窗、视觉）；
+    MinerU2.5-Pro 为 OCR 输出模型不收录。
+  - **sensenova**：deepseek-v4-pro 下架移除；sensenova-6.8-flash-lite
+    恢复 200 并补视觉声明；u1.5-lite(404) / deepseek-v4.1-flash(403) 不收录。
+  - **b-ai**：全模型仍 insufficient_user_quota（付费对照 gpt-5.4 亦 403），
+    免费档未恢复，维持免费路由退出。
+  - **zenmux / askdiandian**：现役无变化（glm-4.6v-flash-free 补视觉声明）。
+- **插件图标与 i18n locale 声明**：package.json 增 `icon` 与
+  `./locale/*.json` 导出并把 `locale`、`icon.svg` 纳入 files（icon.svg +
+  locale/en|zh.json），对齐 dsh 插件清单约定。
+
 ## [0.8.23]
 
 ### Changed
