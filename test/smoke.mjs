@@ -20,6 +20,8 @@ const here = dirname(fileURLToPath(import.meta.url))
 // JSON 配置层指向临时文件：绝不触碰真实 ~/.dsh/freeroute.json
 process.env.FREEROUTE_CONFIG = join(tmpdir(), 'freeroute-smoke-' + process.pid + '.json')
 try { unlinkSync(process.env.FREEROUTE_CONFIG) } catch { /* 不存在即跳过 */ }
+// 运行日志写到临时 DSH_HOME：不污染真实 ~/.dsh/freeroute/freeroute.log
+process.env.DSH_HOME = join(tmpdir(), 'freeroute-smoke-home-' + process.pid)
 const mod = await import(join(here, '..', 'lib', 'index.js'))
 
 // ---------------------------------------------------------------- mock 上游
@@ -221,7 +223,7 @@ assert.deepEqual(mod.inject, ['llm', 'timer', 'settings', 'credentials', 'subpro
 assert.ok(adapter != null, 'llm 适配器注册到 freeroute')
 assert.ok(remote !== undefined, 'freeroute Remote 服务已注册')
 const exported = remoteMethods(remote).map((m) => m.exportName ?? m.method).sort()
-assert.deepEqual(exported, ['applyPatch', 'catalogSync', 'clearKey', 'getKeys', 'probe', 'removeUpstream', 'restoreUpstream', 'setDefault', 'setKey', 'state', 'test'], '11 个 Remote 方法全部带标记')
+assert.deepEqual(exported, ['applyPatch', 'catalogSync', 'clearKey', 'getKeys', 'probe', 'removeUpstream', 'restoreUpstream', 'served', 'setDefault', 'setKey', 'state', 'test'], '12 个 Remote 方法全部带标记')
 assert.equal(remote.typertRemote.namespace, 'freeroute', 'RPC 命名空间为 freeroute')
 
 console.log('■ 2. Remote 委托与状态')

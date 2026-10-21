@@ -27,6 +27,14 @@ try { __fs.unlinkSync(CFG) } catch { /* 不存在即跳过 */ }
 // 立即连接失败的本地源——失败的同步不改远端层，测试也不再依赖外网。
 __fs.writeFileSync(CFG, JSON.stringify({ catalog: { remoteUrl: 'http://127.0.0.1:9/none.json' } }))
 process.env.FREEROUTE_CONFIG = CFG
+// 运行日志写到临时 DSH_HOME：此前 homedir 直通，测试的 mock-* 日志混进真实
+// ~/.dsh/freeroute/freeroute.log，排查线上问题时全是噪音。
+const LOG_HOME = __os.tmpdir() + '/freeroute-test-home-' + process.pid
+process.env.DSH_HOME = LOG_HOME
+const LOG_FILE = LOG_HOME + '/freeroute/freeroute.log'
+// 首 token 超时缩到 0.6s，第 22 段才能在秒级内验证「出字前慢 → 切换」。
+// 其余 mock 都是立即出字，不受影响。
+process.env.FREEROUTE_FIRST_TOKEN_SECONDS = '0.6'
 
 const pkg = JSON.parse(readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8'))
 const body = readFileSync(path.join(here, '..', 'host.js'), 'utf8')
@@ -246,6 +254,15 @@ const services = {
   webServer: fakeWebServer, commands: fakeCommands, agentDefaultModel: fakeDefaultModel
 }
 const disposers = []
+// 会话事件总线替身：归属标注靠 session/event 跟踪 turn/step 并绑定 messageId，
+// 所以夹具必须能真正 emit（真实宿主由 dsh-session 的 session/event 提供）。
+const listeners = new Map()
+function emit(name) {
+  const args = Array.prototype.slice.call(arguments, 1)
+  const list = listeners.get(name)
+  if (!list) return
+  for (const fn of list.slice()) fn.apply(null, args)
+}
 const fakeCtx = {
   llm: fakeLlm,
   timer: {
@@ -253,6 +270,15 @@ const fakeCtx = {
     interval: (fn, ms) => { const t = setInterval(fn, ms); return () => clearInterval(t) }
   },
   get: (n) => services[n],
+  on(name, fn) {
+    if (!listeners.has(name)) listeners.set(name, [])
+    listeners.get(name).push(fn)
+    return () => {
+      const list = listeners.get(name) || []
+      const i = list.indexOf(fn)
+      if (i >= 0) list.splice(i, 1)
+    }
+  },
   effect(fn) { const d = fn(); if (d) disposers.push(d) }
 }
 
@@ -1362,6 +1388,117 @@ section('21. 视觉输入模态：只正面声明 image，未知一律不声明�
   check('探测只报 text 的模型不反向声明（仍为未知/透传）', at.inputModalities === undefined, JSON.stringify(at.inputModalities))
   await rpc('freeroute.remove-upstream', { id: 'mod-probe' })
   await rpc('freeroute.remove-upstream', { id: 'mod-vision' })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
+section('20. 逐条回复的模型归属：turn/step → messageId → freeroute.served')
+{
+  // 只开 mock-ok：候选确定，归属里的模型/上游可断言。
+  await isolatePool()
+  const reg = await rpc('freeroute.apply-patch', { patch: {
+    order: ['mock-ok'],
+    upstreams: { 'mock-ok': { enabled: true, custom: { noAuth: true, baseUrl: b(portOk), models: [{ id: 'test-model', name: 'T', contextWindow: 8192 }], defaultModel: 'test-model', freeModels: ['test-model'] } } }
+  } })
+  check('归属测试用上游就绪', reg.ok === true, JSON.stringify(reg))
+
+  const session = { id: 'sess-served' }
+  const served = async () => (await rpc('freeroute.served', { sessionId: 'sess-served' })).messages
+  check('会话未知时返回空表', Object.keys((await rpc('freeroute.served', { sessionId: 'nope' })).messages).length === 0)
+
+  emit('session/event', session, { type: 'turn/start', data: { turn: 1 } })
+  emit('session/event', session, { type: 'step/start', data: { turn: 1, step: 1 } })
+  check('未发生调用时不暴露归属', Object.keys(await served()).length === 0)
+
+  const r = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', sessionId: 'sess-served', messages: msg('归属') }))
+  check('带 sessionId 的请求正常出字', r.text === 'Mock reply OK', JSON.stringify(r.text))
+  check('assistant/message 落地前不暴露归属（此时还没有 messageId）', Object.keys(await served()).length === 0)
+
+  emit('session/event', session, { type: 'assistant/message', data: { turn: 1, step: 1, message: { id: 'msg-served-1' } } })
+  const rec = (await served())['msg-served-1']
+  check('assistant/message 到达后按 messageId 绑定归属', rec != null, JSON.stringify(await served()))
+  check('归属记录实际服务的模型', rec && rec.model === 'test-model', JSON.stringify(rec))
+  check('归属记录实际上游（含展示名）', rec && rec.upstream === 'mock-ok' && typeof rec.upstreamName === 'string' && rec.upstreamName.length > 0, JSON.stringify(rec))
+  check('归属记录请求模型（auto 与实服务模型区分开）', rec && rec.requested === 'auto', JSON.stringify(rec))
+
+  // 同一会话第二步：各自独立成条，互不覆盖
+  emit('session/event', session, { type: 'step/start', data: { turn: 1, step: 2 } })
+  await collect(adapter.stream({ provider: 'freeroute', model: 'auto', sessionId: 'sess-served', messages: msg('第二步') }))
+  emit('session/event', session, { type: 'assistant/message', data: { turn: 1, step: 2, message: { id: 'msg-served-2' } } })
+  const both = await served()
+  check('同会话多步各自独立成条', both['msg-served-1'] != null && both['msg-served-2'] != null, JSON.stringify(both))
+
+  // compaction / 会话标题这类内部调用不占用归属（它们不是用户看的回复）
+  emit('session/event', session, { type: 'turn/start', data: { turn: 2 } })
+  emit('session/event', session, { type: 'step/start', data: { turn: 2, step: 1 } })
+  await collect(adapter.stream({ provider: 'freeroute', model: 'auto', sessionId: 'sess-served', purpose: 'compaction', messages: msg('压缩') }))
+  emit('session/event', session, { type: 'assistant/message', data: { turn: 2, step: 1, message: { id: 'msg-compact' } } })
+  check('purpose=compaction 的调用不产生归属', (await served())['msg-compact'] === undefined, JSON.stringify(await served()))
+
+  // 没有 sessionId 的调用（本地 /freeroute/v1 入口、面板连通测试）不写归属
+  await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('无会话') }))
+  emit('session/event', session, { type: 'assistant/message', data: { turn: 2, step: 2, message: { id: 'msg-nosess' } } })
+  check('无 sessionId 的调用不产生归属', (await served())['msg-nosess'] === undefined, JSON.stringify(await served()))
+
+  emit('session/disposed', session)
+  check('会话销毁后归属被清理', Object.keys(await served()).length === 0)
+}
+
+section('22. 首 token 超时：只发心跳不出字的上游被中止并切换；末位候选不设限；出字后中断留日志')
+{
+  const readLog = () => { try { return __fs.readFileSync(LOG_FILE, 'utf8') } catch { return '' } }
+  // 只发 SSE 心跳注释、delay 后才出字：字节一直在流，curl 的读空闲检测拦不住
+  const mkSlow = (t, delay) => (req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    const beat = setInterval(function () { res.write(': keepalive\n\n') }, 100)
+    setTimeout(function () {
+      clearInterval(beat)
+      res.write(j({ choices: [{ delta: { content: t } }] }))
+      res.write(j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } }))
+      res.end('data: [DONE]\n\n')
+    }, delay)
+    res.on('close', function () { clearInterval(beat) })
+  }
+  await isolatePool()
+  const portTtSlow = await listen('ttSlow', mkSlow('SLOW', 6000))
+  const portTtFast = await listen('ttFast', mkText('FAST'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['tt-slow', 'tt-fast'], upstreams: {
+    'tt-slow': { enabled: true, custom: { noAuth: true, baseUrl: b(portTtSlow), models: [{ id: 'tt-free', name: 'TT', contextWindow: 131072 }], defaultModel: 'tt-free' } },
+    'tt-fast': { enabled: true, custom: { noAuth: true, baseUrl: b(portTtFast), models: [{ id: 'tt-free', name: 'TT', contextWindow: 131072 }], defaultModel: 'tt-free' } }
+  } } })
+  const t0 = Date.now()
+  const rtt = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  const dt = Date.now() - t0
+  check('首 token 超时后切到下一家（FAST）', rtt.text === 'FAST', JSON.stringify(rtt.text))
+  // 慢上游 6s 才出字；阈值留足余量，避免门禁并发跑多版本 Node 时计时抖动误报
+  check('没有等慢上游出字（< 4s）', dt < 4000, String(dt))
+  check('日志记录 TIMEOUT 切换', /tt-slow 模型 tt-free 失败\(TIMEOUT\)，切换到 tt-fast/.test(readLog()))
+
+  // 末位候选：后面没有退路，不设首 token 超时，等它慢慢出字
+  //（tt-slow 刚因超时进了冷却，换一家全新的慢上游）
+  const portTtSolo = await listen('ttSolo', mkSlow('SLOW', 1500))
+  await rpc('freeroute.apply-patch', { patch: { order: ['tt-solo'], upstreams: {
+    'tt-slow': { enabled: false }, 'tt-fast': { enabled: false },
+    'tt-solo': { enabled: true, custom: { noAuth: true, baseUrl: b(portTtSolo), models: [{ id: 'solo-tt-free', name: 'ST', contextWindow: 131072 }], defaultModel: 'solo-tt-free' } }
+  } } })
+  const rlast = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('末位候选不设首 token 超时（SLOW）', rlast.text === 'SLOW', JSON.stringify(rlast.text))
+
+  // 出字后被断：无法切换，报错带中断原因，freeroute.log 留一行
+  const portTtCut = await listen('ttCut', (req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    res.write(j({ choices: [{ delta: { reasoning_content: 'thinking...' } }] }))
+    setTimeout(function () { res.destroy() }, 50)
+  })
+  await rpc('freeroute.apply-patch', { patch: { order: ['tt-cut'], upstreams: {
+    'tt-solo': { enabled: false },
+    'tt-cut': { enabled: true, custom: { noAuth: true, baseUrl: b(portTtCut), models: [{ id: 'cut-free', name: 'CT', contextWindow: 131072 }], defaultModel: 'cut-free' } }
+  } } })
+  let cutErr = null
+  try { await collect(adapter.stream({ provider: 'freeroute', model: 'tt-cut/cut-free', messages: msg('ping') })) } catch (e) { cutErr = e }
+  check('出字后中断原样上抛 STREAM_CLOSED', cutErr && cutErr.code === 'STREAM_CLOSED', String(cutErr && cutErr.code))
+  check('中断报错附带原因与已运行时长', cutErr && /已运行 \d+s/.test(cutErr.message), String(cutErr && cutErr.message))
+  check('出字后中断写入 freeroute.log', /tt-cut 模型 cut-free 出字后中断\(STREAM_CLOSED\)/.test(readLog()))
+  for (const id of ['tt-slow', 'tt-fast', 'tt-solo', 'tt-cut']) await rpc('freeroute.remove-upstream', { id })
   await rpc('freeroute.apply-patch', { patch: { order: [] } })
 }
 

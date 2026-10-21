@@ -4,6 +4,58 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0]
+
+### Added
+
+- **每条回复的模型标注（自动模式）**：回复的时间（如 `13:17`）右侧多一个小标签
+  `⚡ <实际服务模型>`，悬浮显示上游与请求模型（`auto`）。此前 auto 模式下用户
+  只能看到「⚡ Auto」，无从知道这一条到底是哪家上游的哪个模型答的；故障转移
+  之后尤其需要。实现要点：
+  - 适配器成功出字时记录「真正服务的上游 + 模型」，按 `(sessionId, turn, step)`
+    暂存；宿主 `assistant/message` 落地时绑到该消息的 `messageId`（适配器在消息
+    落盘前就被调用，拿不到 `messageId`，只能靠这个事件对齐键）。
+  - 客户端挂到宿主的 `conversation.chat.assistant-actions` 动作行，CSS
+    `order: 1` 把它排到 `endInfo`（时间）之后 —— 视觉上就在时间右边，并沿用
+    动作行原有的 hover 显隐，不新增交互。
+  - 数据经新 RPC `freeroute.served` 按 `messageId` 取回，按会话缓存 1 秒（同批
+    新消息共用一次请求）。归属只存宿主内存，**不写会话日志**：dsh 的持久化读
+    路径会拒绝未登记的未知事件类型（写进去会话就读不回来了），合法的 plugin
+    record 又要求与宿主同一份 dsh-session 模块实例，插件拿不到。代价是宿主进程
+    重启后历史消息不再标注。
+  - 只标注会话消息：`purpose: 'compaction'` / 会话标题这类内部调用、以及没有
+    `sessionId` 的调用（本地 `/freeroute/v1` 入口、面板连通测试）不产生归属。
+
+### Fixed
+
+- **「本轮运行失败：上游流在结束前中断」高发**：0.9.x 的 auto 锚点常落到
+  `glm-5.3-flash @ amd-radeon`、`nemotron-3-super` 这类免费网关，4～5.6 万 token
+  输入时首 token 要排队 4～7 分钟，期间只发 SSE 心跳——心跳也是字节，绕过了
+  90s 读空闲检测；之后的慢推理再撞上 600s 整次上限，在**已出字后**被 curl
+  砍断，无法切换上游，整轮失败（实测 4 次失败全部在请求发出后 600.0～600.4s）。
+  - 新增**首 token 超时**（默认 90s，`FREEROUTE_FIRST_TOKEN_SECONDS` 可调，`0`
+    关闭）：出字前超时即中止并抛 `TIMEOUT`，按普通失败冷却并切下一家候选。
+    链上最后一个候选不设此限——后面没有退路时，等慢上游好过直接失败。
+- **中断原因终于可见**：此前在 curl 退出前读 stderr，实测从未读到内容，报错
+  永远是笼统的「上游流在结束前中断」。现在等 curl 退出（最多 2s）取退出码，
+  区分「超过整次上限 600s」「连续 90s 无数据」「连接被重置」「关闭但无
+  [DONE]」，并附已运行时长。
+- **出字后中断写入 freeroute.log**（含上游、模型、原因）：此前这类整轮失败在
+  日志里一行都没有，只能从 dsh 会话反推。
+- 测试的运行日志改写到临时 `DSH_HOME`，不再把 `mock-*` 噪音混进真实
+  `~/.dsh/freeroute/freeroute.log`。
+
+### Tests
+
+- `integration.mjs` 第 22 段：只发心跳的慢上游被首 token 超时中止并切到下一
+  家、末位候选不设限照常等到出字、出字后中断上抛 `STREAM_CLOSED` 且报错带原
+  因与时长、日志留痕。
+- `integration.mjs` 第 20 段：turn/step 跟踪 → `assistant/message` 绑定 →
+  `freeroute.served` 读回，覆盖多步独立成条、compaction 不占用归属、无
+  `sessionId` 不写归属、会话销毁后清理。
+- `client-integration.mjs` 第 8 段：动作行条目注册（id/order）、有归属时渲染
+  `frp-served` + 悬浮说明、无归属 / 缺 `sessionId` 时不渲染。
+
 ## [0.9.1]
 
 ### Fixed

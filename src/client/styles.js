@@ -99,6 +99,10 @@ const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp-tab:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, currentColor); outline-offset: 2px; color: var(--dsw-alias-label-primary, inherit); border-radius: 2px; }',
   '.frp-panel { min-width: 0; padding-top: 2px; }',
   // 原模型页包裹层：不生成盒子，让内置 section 直接参与 frp-tabpage 布局。
-  '.frp-models-scope { display: contents; }'
+  '.frp-models-scope { display: contents; }',
+  // 每条回复的模型标注：宿主动作行（复制 / 分支 / 时间）的最后一个 flex 子项，
+  // order:1 把它排到 endInfo（时间）之后 —— 视觉上就在「13:17」右边。行本身
+  // 沿用宿主的 hover 显隐（[data-actions-reveal=hover]），不额外造交互。
+  '.frp-served { order: 1; margin-left: 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 2px); line-height: calc(24px + var(--dsh-content-font-delta, 0px)); color: var(--dsw-alias-label-tertiary, rgba(128,128,128,.9)); cursor: default; }'
 ].join('\n')
 

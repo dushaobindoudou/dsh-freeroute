@@ -265,6 +265,11 @@
       if (!id) return { ok: false, error: '参数不完整' }
       return testUpstream(id)
     }
+    // 逐条回复的模型归属：{ messages: { <messageId>: { model, upstream, upstreamName, requested } } }。
+    // 客户端按 messageId 直接查，所以不需要会话历史参与。
+    rpc['freeroute.served'] = async function (args) {
+      return { messages: servedForSession(args && args.sessionId) }
+    }
     rpc['freeroute.set-default'] = async function (args) {
       try {
         // 调用时再取：该服务可能晚于本插件启动

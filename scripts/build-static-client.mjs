@@ -25,6 +25,7 @@ const NAMES = {
   'freeroute.probe': 'probe',
   'freeroute.test': 'test',
   'freeroute.get-keys': 'getKeys',
+  'freeroute.served': 'served',
 }
 for (const [ep, m] of Object.entries(NAMES)) {
   // set-key/clear-key/apply-patch/… only travel through act(); state/test/
@@ -73,6 +74,17 @@ const tailMarker = `return {
       integ.attempt()
       return [stop, integ.dispose]
     })
+    // auto 模式下「这条回复实际是哪个模型答的」：挂在 assistant 动作行里，
+    // CSS order 把它排到时间右侧。宿主没有该 slot 时静默跳过（老版本兼容）。
+    try {
+      slots.inject('conversation.chat.assistant-actions', function () {
+        return slots.register({
+          name: 'conversation.chat.assistant-actions',
+          id: 'freeroute-served',
+          order: 50
+        }, ServedBadge)
+      })
+    } catch (e) { }
   }
 }`
 if (!src.includes(tailMarker)) throw new Error('client tail marker not found')
@@ -142,6 +154,15 @@ ${src}
 				integ.attempt();
 				return [stop, integ.dispose];
 			}), "dsh-freeroute: models-page integration");
+			// 逐条回复的模型标注：assistant 动作行里由 CSS order 排到时间右侧。
+			// 宿主版本没有这个 slot 时静默跳过，不影响设置页集成。
+			try {
+				c.effect(() => slots.inject("conversation.chat.assistant-actions", () => slots.register({
+					name: "conversation.chat.assistant-actions",
+					id: "freeroute-served",
+					order: 50
+				}, ServedBadge)), "dsh-freeroute: served badge");
+			} catch (e) { /* 老宿主无此 slot */ }
 			return () => { styleEl.remove(); };
 		}
 

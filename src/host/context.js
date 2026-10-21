@@ -24,6 +24,15 @@
     const catalogMeta = { lastSyncAt: null, lastError: '', lastCount: 0, lastFormat: null, lastSyncUrl: '', lastUsedFallback: false }
     let curlCache = null
 
+    // ---- 逐条回复的模型归属（「这条回复实际是哪家上游的哪个模型答的」）----
+    // 只存宿主内存，不写会话日志：dsh 的持久化读路径会拒绝未登记的未知事件
+    // 类型（写进去会话就读不回来了），而合法的 plugin record 需要与宿主同一份
+    // dsh-session 模块实例，插件拿不到。代价是宿主进程重启后历史消息不再标注。
+    const servedByMessage = new Map() // messageId -> { model, upstream, upstreamName, requested }
+    const servedSessionIds = new Map() // sessionId -> Set<messageId>（会话销毁时清理用）
+    const servedPending = new Map() // sessionId -> Map<'turn:step' -> 归属>（等 assistant/message 绑定）
+    const sessionTurns = new Map() // sessionId -> { turn, step }（取自 turn/start、step/start）
+
     // ---- 配置持久化：独立 JSON 文件优先（迁移/替换只需拷一个文件），settings 兜底 ----
     // 静态构建在 apply 头部注入 __nodeFs/__nodeOs；动态沙箱无 fs 时退回 settings
     // 服务（行为同旧版）。JSON 模式：读走启动 + buildState 的 mtime 廉价检查

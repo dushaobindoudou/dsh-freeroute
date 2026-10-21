@@ -42,6 +42,7 @@ const METHODS = [
   ['test', 'freeroute.test'],
   ['setDefault', 'freeroute.set-default'],
   ['getKeys', 'freeroute.get-keys'],
+  ['served', 'freeroute.served'],
 ]
 
 const methodLines = METHODS.map(([m, ep]) =>

@@ -51,6 +51,8 @@
     if (configFileOk) log('[freeroute] 配置文件:', configPath)
 
     ctx.effect(function () { return llm.registerAdapter([ROUTE], adapter) })
+    // 逐条回复的模型归属：跟踪 turn/step 并在 assistant/message 落地时绑定 messageId。
+    watchServed()
     for (const pair of Object.entries(rpc)) {
       const name = pair[0]
       const handler = pair[1]

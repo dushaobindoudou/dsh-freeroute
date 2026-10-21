@@ -51,6 +51,16 @@
       st.requests += 1
       let completed = false
       let proc = null
+      // 首 token 超时（根因 E）：免费网关常见「接了连接、只发 SSE 心跳注释、
+      // 排队数分钟才吐第一个 token」。心跳也是字节，骗过了 --speed-time；随后
+      // 才开始的慢推理又会撞上 --max-time，在出字后被砍——此时已无法切换上游，
+      // 整轮失败。出字前超过 firstTokenMs 即主动中止并抛 TIMEOUT，chaseChain
+      // 照常切下一家；hooks 不传（如链上最后一个候选）则不设此限，宁慢勿败。
+      const ttftMs = (hooks && hooks.firstTokenMs > 0) ? hooks.firstTokenMs : 0
+      let firstSeen = false
+      let ttftHit = false
+      let ttftDispose = null
+      const stopTtft = function () { if (ttftDispose) { try { ttftDispose() } catch (e) { } ttftDispose = null } }
       try {
         const key = keyEntry.key
         const curl = await ensureCurl()
@@ -90,6 +100,13 @@
         } catch (e) { throw mkFail('curl 启动失败: ' + emsg(e), 'TRANSPORT') }
         if (hooks && typeof hooks.onProc === 'function') { try { hooks.onProc(proc) } catch (e) { } }
         if (!proc || !proc.stdout) throw mkFail('curl 输出管道不可用', 'TRANSPORT')
+        if (ttftMs) {
+          ttftDispose = timer.timeout(function () {
+            if (firstSeen) return
+            ttftHit = true
+            try { proc.terminate() } catch (e) { }
+          }, ttftMs)
+        }
         const tr = createTranslator()
         // 配额通知嗅探：部分网关（如 aihubmix）配额用尽时返回 HTTP 200 + 一段
         // 纯文本提示而非错误码。传输层看到 200 视为成功，提示会被当成「正常
@@ -102,6 +119,7 @@
         try {
           for await (const bytes of proc.stdout) {
             for (const ck of tr.feed(bytes)) {
+              if (!firstSeen && DELTA_TYPES.indexOf(ck.type) >= 0) { firstSeen = true; stopTtft() }
               if (sniffing && ck.type === 'text-delta') {
                 acc += ck.text
                 // 只匹配窗口内子串：单块超窗时避免窗口外的词误伤
@@ -130,21 +148,21 @@
           tr.finishOrThrow()
         } catch (e) {
           if (options.signal && options.signal.aborted) throw mkFail('请求已被调用方取消', 'ABORTED')
-          // 流在 [DONE] 前中断时，把 curl 的退出原因（超时 / 速度过低中止 /
-          // 连接被重置等）附到错误上；否则只剩笼统的「上游流在结束前中断」，
-          // 无法判断是超时还是异常关闭（根因 C 诊断）。
+          if (ttftHit && !firstSeen) {
+            throw mkFail('上游 ' + upstream.id + ' 模型 ' + model + ' 在 ' + Math.round(ttftMs / 1000) + 's 内未输出首个 token（排队或心跳空转），已中止', 'TIMEOUT')
+          }
+          // 流在 [DONE] 前中断时，把中断原因（整次上限 / 读空闲 / 连接被重置等）
+          // 附到错误上；否则只剩笼统的「上游流在结束前中断」（根因 C 诊断）。
           if ((e && e.code) === 'STREAM_CLOSED' && proc) {
-            let tail = ''
-            try {
-              const rd = proc.collected && proc.collected.stderr
-              if (rd) { const r = rd.readFrom(0); if (r && r.text) tail = String(r.text).trim().replace(/\s+/g, ' ').slice(0, 160) }
-            } catch (e2) { }
-            if (tail) e.message = String(e.message || '').replace(/：$/, '') + '（' + tail + '）'
+            const why = await closeReason(proc, startedAt)
+            if (why) e.message = String(e.message || '').replace(/：$/, '') + '（' + why + '）'
           }
           throw e
         }
         completed = true
         goodModel.set(upstream.id, model)
+        // 归属标注：这条消息真正由谁服务（客户端显示在回复时间右侧）。
+        try { noteServed(options, upstream, model) } catch (e0) { }
         // 记录本次实际服务的上下文窗口：作为后续分层基准的粘性下限（根因 D）。
         const servedWin = contextWindowOf({ upstream: upstream, model: model })
         if (servedWin) lastServedWindow = servedWin
@@ -156,8 +174,40 @@
         err.keyRef = keyEntry.ref
         throw err
       } finally {
+        stopTtft()
         if (!completed && proc) { try { proc.terminate() } catch (e) { } }
       }
+    }
+
+    // 流中断原因：等 curl 退出（最多 2s）取退出码，结合已运行时长判断。
+    // 此前只读 stderr，且在 curl 退出前读——实测从未读到过内容，报错永远是
+    // 笼统的「上游流在结束前中断」，分不清是被我们的上限砍断还是上游断开。
+    async function closeReason(proc, startedAt) {
+      let dispose = null
+      const giveUp = new Promise(function (r) { dispose = timer.timeout(function () { r(null) }, 2000) })
+      const exit = await Promise.race([proc.done, giveUp]).catch(function () { return null })
+      if (dispose) { try { dispose() } catch (e) { } }
+      const secs = Math.round((Date.now() - startedAt) / 1000)
+      const code = exit && typeof exit.exitCode === 'number' ? exit.exitCode : null
+      let why = ''
+      if (code === 28) {
+        why = secs >= REQUEST_MAX_SECONDS - 5
+          ? '超过整次请求上限 ' + REQUEST_MAX_SECONDS + 's 被中止'
+          : '连续 ' + STALL_IDLE_SECONDS + 's 无数据被判停滞'
+      } else if (code === 18) why = '传输不完整'
+      else if (code === 52) why = '上游空回复'
+      else if (code === 56) why = '接收失败/连接被重置'
+      else if (code === 0) why = '上游关闭了连接但未发送 [DONE]'
+      if (code !== null && code !== 0) why += (why ? '，' : '') + 'curl ' + code
+      let tail = ''
+      try {
+        const rd = proc.collected && proc.collected.stderr
+        const r = rd && rd.readFrom(0)
+        const t = r && (typeof r.text === 'function' ? r.text() : r.text)
+        if (t) tail = String(t).trim().replace(/\s+/g, ' ').slice(0, 160)
+      } catch (e) { }
+      if (tail) why += (why ? '：' : '') + tail
+      return (why ? why + '；' : '') + '已运行 ' + secs + 's'
     }
 
     const DELTA_TYPES = ['text-delta', 'reasoning-delta', 'tool-call-delta']
@@ -180,6 +230,14 @@
     // 被中止（此前只有 connect-timeout，实测挂过 ~16 分钟）。阈值可按需调整。
     const STALL_IDLE_SECONDS = 90
     const REQUEST_MAX_SECONDS = 600
+    // 首 token 超时（根因 E，见 attemptWithKey）：默认 90s，与读空闲同档。
+    // 实测 4～5.6 万 token 输入时正常上游 25～50s 出首 token，慢的免费网关
+    // 排队 4～7 分钟。环境变量 FREEROUTE_FIRST_TOKEN_SECONDS 可覆盖（0 关闭）。
+    const FIRST_TOKEN_MS = (function () {
+      const env = (typeof process === 'object' && process !== null && process.env) ? process.env : {}
+      const v = Number(env.FREEROUTE_FIRST_TOKEN_SECONDS)
+      return (env.FREEROUTE_FIRST_TOKEN_SECONDS !== undefined && isFinite(v) && v >= 0) ? Math.round(v * 1000) : 90000
+    })()
 
     function candidatesSync(pool, model) {
       // auto 走 autoChain（质量/交集/容量三层排序），不在这里处理——本函数只
@@ -344,7 +402,8 @@
         + '；候选 同款 ' + counts[0] + ' / 同窗 ' + counts[1] + ' / 够容量 ' + counts[2] + ' / 兜底 ' + counts[3])
     }
 
-    // auto 的全部候选，按层输出（层内同款模型的提供方保持相邻）：
+    // auto 的全部候选，按层输出（同款模型的提供方按各自窗口分层，可能跨层；
+    // 只有锚点层内同款提供方是连续的）：
     //   ① 锚点模型、装得下本次会话的提供方（窗口大的在前）
     //   ② 其他模型中窗口不低于链首的提供方
     //   ③ 其他模型中装得下本次会话的提供方
@@ -525,10 +584,13 @@
         const sameUpNext = !!(cands[i + 1] && cands[i + 1].upstream.id === cand.upstream.id)
         const sameUpLater = cands.slice(i + 1).some(function (c) { return c.upstream.id === cand.upstream.id })
         const suppress = function (e) { return sameUpLater && !UPSTREAM_LEVEL_CODES.has(String((e && e.code) || '')) }
+        // 后面已无可试候选时不设首 token 超时：没有退路，等慢上游总好过直接失败。
+        const lastTry = (maxAttempts > 0 && attempts >= maxAttempts) ||
+          !cands.slice(i + 1).some(function (c) { return !dead.has(c.upstream.id) })
         let produced = false
         let emptyFinish = null
         try {
-          for await (const ck of attempt(cand.upstream, cand.model, options, { suppressCooldown: suppress })) {
+          for await (const ck of attempt(cand.upstream, cand.model, options, { suppressCooldown: suppress, firstTokenMs: lastTry ? 0 : FIRST_TOKEN_MS })) {
             if (DELTA_TYPES.indexOf(ck.type) >= 0) produced = true
             if (ck.type === 'finish' && (!ck.reason || ck.reason.kind === 'error') && !produced) {
               // 上游异常终止（如空响应）且尚未产出任何内容：视为该次尝试失败，
@@ -550,7 +612,12 @@
         } catch (e) {
           lastErr = e
           if (options.signal && options.signal.aborted) throw e
-          if (produced) throw e
+          if (produced) {
+            // 出字后中断无法切换（会重复输出），整轮失败——此前这里不留日志，
+            // 只能从 dsh 会话反推是哪家上游断的。
+            log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 出字后中断(' + String(e && e.code) + ')，无法切换：' + emsg(e))
+            throw e
+          }
           if (UPSTREAM_LEVEL_CODES.has(String((e && e.code) || ''))) dead.add(cand.upstream.id)
           const nxt = cands[i + 1]
           if (nxt) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 失败(' + String(e && e.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt.model : nxt.upstream.id))

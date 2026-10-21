@@ -30,5 +30,16 @@ return {
       integ.attempt()
       return [stop, integ.dispose]
     })
+    // auto 模式下「这条回复实际是哪个模型答的」：挂在 assistant 动作行里，
+    // CSS order 把它排到时间右侧。宿主没有该 slot 时静默跳过（老版本兼容）。
+    try {
+      slots.inject('conversation.chat.assistant-actions', function () {
+        return slots.register({
+          name: 'conversation.chat.assistant-actions',
+          id: 'freeroute-served',
+          order: 50
+        }, ServedBadge)
+      })
+    } catch (e) { }
   }
 }

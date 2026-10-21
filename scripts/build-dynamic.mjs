@@ -41,6 +41,7 @@ const HOST_BODY = [
   'probe.js',
   'models.js',
   'health.js',
+  'attribution.js',
   'transport.js',
   'router.js',
   'http.js',
@@ -71,6 +72,7 @@ const CLIENT_PANEL = [
 const CLIENT_TAIL = [
   'models-page.js',
   'integration.js',
+  'served.js',
   'plugin.js',
 ]
 // Must stay byte-identical to the markers build-static-client.mjs rewrites.

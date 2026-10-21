@@ -56,8 +56,9 @@ const styles = { insert: function () { return function () { } } }
 const host = { call: function () { return Promise.resolve(null) } }
 
 // ---------------------------------------------------------------- slots 服务替身
-function makeSlots(modelsEntry) {
+function makeSlots(modelsEntry, extraSlots) {
   const declared = new Set(['settings.section'])
+  if (Array.isArray(extraSlots)) for (const k of extraSlots) declared.add(k)
   const registrations = []
   const injections = []
   const subscribers = []
@@ -342,6 +343,54 @@ await (async function () {
     const adv = tree4.children[3]
     check('高级设置展开为字段分组', adv.children[1].props.className === 'frp-ucard-body' && adv.children[1].children[0].props.className === 'frp-fgroup' && adv.children[1].children[1].props.className === 'frp-fgroup')
     check('面板收尾不再有独立 frp-card 块', tree4.children.every(function (k) { return k.props.className !== 'frp-card' }))
+  }
+})()
+
+await (async function () {
+  section('8. 每条回复的模型标注：assistant 动作行条目 + 渲染')
+  {
+    const sr = makeStatefulReact()
+    const SERVED = {
+      messages: {
+        'msg-1': { model: 'glm-5.3-flash', upstream: 'opencode-zen', upstreamName: 'OpenCode Zen', requested: 'auto' }
+      }
+    }
+    const host3 = {
+      call: function (method) {
+        if (method === 'freeroute.served') return Promise.resolve(SERVED)
+        return Promise.resolve(HOST_STATE)
+      }
+    }
+    const factory = new Function('React', 'styles', 'host', body)
+    const plugin = factory(sr.R, styles, host3)
+    const slots = makeSlots(null, ['conversation.chat.assistant-actions'])
+    plugin.apply(makeCtx(slots))
+    const entries = slots.registrations.filter(function (r) { return !r.disposed && r.options.name === 'conversation.chat.assistant-actions' })
+    check('注册 assistant 动作行条目', entries.length === 1, String(entries.length))
+    check('条目 id=freeroute-served 且 order=50（排在宿主动作之后）', entries[0].options.id === 'freeroute-served' && entries[0].options.order === 50, JSON.stringify(entries[0] && entries[0].options))
+    const Badge = entries[0].component
+    check('组件挂载时不主动请求（首次渲染返回 null）', (function () {
+      sr.begin()
+      return Badge({ messageId: 'msg-1', sessionId: 'sess-1' }) === null
+    })())
+
+    // 跑 effect → RPC 回填 → 重渲染（嵌套 promise，等一个宏任务确保全部落地）
+    for (const fn of sr.st.effects) fn()
+    await new Promise(function (r) { setTimeout(r, 0) })
+    sr.begin()
+    const badge = Badge({ messageId: 'msg-1', sessionId: 'sess-1' })
+    check('有归属时渲染 frp-served 标签', badge && badge.props && badge.props.className === 'frp-served', JSON.stringify(badge && badge.props))
+    check('文本为「⚡ 实际服务模型」', badge && badge.children[0] === '⚡ glm-5.3-flash', String(badge && badge.children[0]))
+    check('悬浮说明含上游与请求模型', String(badge.props.title).indexOf('OpenCode Zen') >= 0 && String(badge.props.title).indexOf('auto') >= 0, String(badge.props.title))
+
+    // 换一条消息 = 换一个组件实例：替身按 hook 序号存 state，这里手动清栈
+    sr.st.slots = []
+    sr.begin()
+    const missing = Badge({ messageId: 'msg-none', sessionId: 'sess-1' })
+    check('该消息没有归属时不渲染（非 freeroute 回复无标签）', missing === null)
+    sr.st.slots = []
+    sr.begin()
+    check('缺 sessionId 时不请求也不渲染', Badge({ messageId: 'msg-1' }) === null)
   }
 })()
 

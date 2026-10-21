@@ -51,7 +51,10 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    vendor, not per model, since the same model ships with very different
    windows on different gateways. A **pinned single model** degrades to the `auto` chain when all
    of its providers fail (or sit in cooldown) instead of aborting the turn —
-   picking one model is a preference, not exclusivity. Keys rotate
+   picking one model is a preference, not exclusivity. An upstream that emits
+   no token within 90 s (queued, or only sending SSE keep-alives) also fails
+   over; the last candidate in the chain has no such limit. Tune with
+   `FREEROUTE_FIRST_TOKEN_SECONDS` (`0` disables). Keys rotate
    individually on AUTH / rate-limit, and a per-key failure is surfaced in the
    panel.
 4. **Three-layer config** — builtin catalog → remote catalog (JSON hosted on
@@ -89,6 +92,20 @@ roles, arrow-key navigation, visited panels stay mounted):
 There is no sibling freeroute item in the settings nav (a standalone section
 appears only if the host ships no wrappable models entry). The `/freeproxy`
 command prints a text status.
+
+## Per-message model attribution
+
+In auto mode the UI only ever shows "⚡ Auto", so you cannot tell who actually
+answered. Every reply now carries a `⚡ <served model>` chip to the **right of
+its timestamp** (after `13:17`); hovering shows the upstream name and the
+requested model (`auto`). It reuses the action row's existing hover reveal, so
+no new interaction is introduced. After a failover you can see at a glance
+which upstream and model served that message.
+
+Attribution lives in host memory only — it is **not** written to the session
+log (dsh's persistence read path rejects unregistered event types), so
+history stops showing chips after a `dsh web` restart; new messages are
+unaffected.
 
 ## Let other agents / tools use the pool (always auto)
 
