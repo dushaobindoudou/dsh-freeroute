@@ -55,6 +55,8 @@ function normalizeCatalogEntry(e) {
   for (const m of raw) {
     if (m && typeof m.id === 'string' && m.id.length > 0) {
       const entry = { id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 }
+      const q = Math.round(Number(m.quality))
+      if (q >= 1 && q <= 5) entry.quality = q
       const im = catalogModelModalities(m)
       if (im) entry.inputModalities = im
       models.push(entry)

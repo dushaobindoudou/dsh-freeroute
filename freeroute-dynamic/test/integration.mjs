@@ -259,6 +259,16 @@ await plugin.apply(fakeCtx)
 const adapter = adapters.get('freeroute')
 const state = async () => rpc('freeroute.state', {})
 
+// 清空上游池后再布置本段的 mock：auto 的锚点会按「质量档 → 交集家数」重排，
+// 前面各段遗留的 enabled 上游（尤其是被多家共有的 test-model 之类）会让后续
+// 断言里的锚点不确定。需要「谁先被调用」这类确定行为的段，先调用本函数。
+async function isolatePool() {
+  const pre = await state()
+  const off = { upstreams: {} }
+  for (const u of pre.upstreams) off.upstreams[u.id] = { enabled: false }
+  await rpc('freeroute.apply-patch', { patch: off })
+}
+
 async function collect(gen) {
   const chunks = []
   let text = ''
@@ -687,6 +697,7 @@ section('13c. 模型级故障转移：单模型不可用先换模型再换上游
 {
   // mock-m 默认模型 dead-free 返回 502，备选 alive-free 正常；mock-n 是
   // 更低优先级的兜底上游。auto 应先在 mock-m 内换模型成功，mock-n 不应被触碰。
+  await isolatePool()
   const portM = await listen('mfail', (req, res) => {
     let body = ''
     req.on('data', function (c) { body += c })
@@ -731,6 +742,7 @@ section('13c. 模型级故障转移：单模型不可用先换模型再换上游
 
 section('13d. 多 Key 轮换：Key 级失败换下一把，不动上游健康')
 {
+  await isolatePool()
   const auths = []
   const portK = await listen('keyring', (req, res) => {
     if (req.method === 'GET') {
@@ -776,6 +788,11 @@ section('13e. 失败触发重探：目录即真相的自愈')
 {
   // 目录先给 dead2-free；其 chat 失败(502) 触发重探，重探返回新目录
   // alive2-free；学习默认(filler)随目录失效自动清理，默认落到新免费款。
+  //
+  // 先禁用此前各段遗留的上游：auto 的锚点会按「质量档 → 交集家数」重排，
+  // 池里只要还有别家共有的模型，本段的首选就可能不是 dead2-free，而本段
+  // 验证的是「首选失败 → 触发重探」这条机制，必须有确定的锚点。
+  await isolatePool()
   let listSwap = false
   const portR = await listen('reprobe', (req, res) => {
     if (req.method === 'GET') {
@@ -792,8 +809,13 @@ section('13e. 失败触发重探：目录即真相的自愈')
   })
   const reg = await rpc('freeroute.apply-patch', {
     patch: {
-      upstreams: { 'mock-r': { enabled: true, custom: { baseUrl: 'http://127.0.0.1:' + portR + '/v1', noAuth: true, models: [{ id: 'dead2-free' }, { id: 'filler-free' }], defaultModel: 'dead2-free' } } },
-      order: ['mock-r']
+      upstreams: {
+        'mock-r': { enabled: true, custom: { baseUrl: 'http://127.0.0.1:' + portR + '/v1', noAuth: true, models: [{ id: 'dead2-free' }, { id: 'filler-free' }], defaultModel: 'dead2-free' } },
+        // 显式备胎上游：dead2 失败后由它出字（此前靠别段遗留的上游兜底，
+        // 一旦池子被清干净就会整条链失败）
+        'mock-rb': { enabled: true, custom: { baseUrl: b(portOk), noAuth: true, models: [{ id: 'rb-free', name: 'RB', contextWindow: 32768 }], defaultModel: 'rb-free' } }
+      },
+      order: ['mock-r', 'mock-rb']
     }
   })
   check('重探自愈上游注册成功', reg.ok === true, JSON.stringify(reg))
@@ -1125,6 +1147,49 @@ section('20b. 大窗候选全部不可用时小窗候选仍兜底（沉底不删
   check('小窗兜底计 1 次成功', (sm.stats.ok || 0) >= 1, JSON.stringify(sm.stats))
   await rpc('freeroute.remove-upstream', { id: 'tier-bigfail2' })
   await rpc('freeroute.remove-upstream', { id: 'tier-small2' })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
+section('20c. auto 分层：质量档优先 / 交集家数优先')
+{
+  await isolatePool()
+  // ① 质量档：优先级更低的上游声明了更高的 quality，应压过优先级序成为锚点。
+  const portQw = await listen('qWeak', mkText('WEAK'))
+  const portQs = await listen('qStrong', mkText('STRONG'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['q-weak', 'q-strong'], upstreams: {
+    'q-weak': { enabled: true, custom: { noAuth: true, baseUrl: b(portQw), models: [{ id: 'weak-free', name: 'W', contextWindow: 131072, quality: 1 }], defaultModel: 'weak-free' } },
+    'q-strong': { enabled: true, custom: { noAuth: true, baseUrl: b(portQs), models: [{ id: 'strong-free', name: 'S', contextWindow: 131072, quality: 5 }], defaultModel: 'strong-free' } }
+  } } })
+  const rq = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('质量档高的模型成为锚点（压过上游优先级序）', rq.text === 'STRONG', JSON.stringify(rq.text))
+  const sq = await state()
+  const weak = sq.upstreams.find((u) => u.id === 'q-weak')
+  check('低质量档上游未被调用', (weak.stats.ok || 0) === 0 && (weak.stats.failed || 0) === 0, JSON.stringify(weak.stats))
+  await rpc('freeroute.remove-upstream', { id: 'q-weak' })
+  await rpc('freeroute.remove-upstream', { id: 'q-strong' })
+
+  // ② 交集家数：同质量档下，被两家共有的模型压过池首的独有模型；
+  //    且首选提供方失败时，同款模型的另一家直接接上（能力/窗口都不变）。
+  await isolatePool()
+  const portSolo = await listen('covSolo', mkText('SOLO'))
+  const portSharedA = await listen('covSharedA', mkFail())
+  const portSharedB = await listen('covSharedB', mkText('SHARED'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['cov-solo', 'cov-a', 'cov-b'], upstreams: {
+    'cov-solo': { enabled: true, custom: { noAuth: true, baseUrl: b(portSolo), models: [{ id: 'solo-free', name: 'SL', contextWindow: 131072, quality: 3 }], defaultModel: 'solo-free' } },
+    'cov-a': { enabled: true, custom: { noAuth: true, baseUrl: b(portSharedA), models: [{ id: 'shared-free', name: 'SH', contextWindow: 131072, quality: 3 }], defaultModel: 'shared-free' } },
+    'cov-b': { enabled: true, custom: { noAuth: true, baseUrl: b(portSharedB), models: [{ id: 'shared-free', name: 'SH', contextWindow: 131072, quality: 3 }], defaultModel: 'shared-free' } }
+  } } })
+  const rc = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('交集 2 家的模型成为锚点（压过池首独有模型）', rc.text === 'SHARED', JSON.stringify(rc.text))
+  const sc = await state()
+  const solo = sc.upstreams.find((u) => u.id === 'cov-solo')
+  const ca = sc.upstreams.find((u) => u.id === 'cov-a')
+  const cb = sc.upstreams.find((u) => u.id === 'cov-b')
+  check('独有模型的上游未被调用', (solo.stats.ok || 0) === 0 && (solo.stats.failed || 0) === 0, JSON.stringify(solo.stats))
+  check('首选提供方失败后同款模型换到另一家', (ca.stats.failed || 0) >= 1 && (cb.stats.ok || 0) >= 1, JSON.stringify({ a: ca.stats, b: cb.stats }))
+  await rpc('freeroute.remove-upstream', { id: 'cov-solo' })
+  await rpc('freeroute.remove-upstream', { id: 'cov-a' })
+  await rpc('freeroute.remove-upstream', { id: 'cov-b' })
   await rpc('freeroute.apply-patch', { patch: { order: [] } })
 }
 

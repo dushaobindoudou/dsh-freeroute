@@ -3,6 +3,13 @@
 // 种子表口径：2026-09-11 live 核对（GET /models 公开可探，无需 Key）。
 // 探测（目录即真相）+ 模型级失败转移会自动绕开瞬时不可用，这里只影响
 // 首探前的种子与首选拍序。
+//
+// quality（可选 1..5）是 auto 路由的第一排序键：插件只能观测成功/失败/延迟，
+// 观测不到「答案好不好」，所以模型强弱必须由目录显式声明。口径：
+//   5 旗舰（前沿推理/编码主力）  4 强（大参数非旗舰）
+//   3 中（正式版通用款）        2 轻（lite / mini / flash-lite / stealth 预览）
+//   1 小或实验（无稳定性承诺）
+// 不标注 = 未声明（0）→ 排序退回「交集家数 → 窗口 → 原有优先级」，行为不变。
 const BUILTIN_UPSTREAMS = [
   {
     id: 'opencode', name: 'OpenCode Zen',
@@ -16,14 +23,14 @@ const BUILTIN_UPSTREAMS = [
     defaultModel: 'union-alpha',
     freeModels: [],
     models: [
-      { id: 'union-alpha', name: 'Union Alpha (stealth preview)', contextWindow: 262144 },
-      { id: 'deepseek-v4-flash-free', name: 'DeepSeek V4 Flash (free)', contextWindow: 131072 },
-      { id: 'muse-spark-1.3-contributor-free', name: 'Muse Spark 1.3 Contributor (free)', contextWindow: 131072 },
-      { id: 'muse-spark-1.2-contributor-free', name: 'Muse Spark 1.2 Contributor (free)', contextWindow: 131072 },
-      { id: 'mimo-v2.5-free', name: 'MiMo v2.5 (free)', contextWindow: 131072 },
-      { id: 'ling-3.0-flash-fin-free', name: 'Ling 3.0 Flash Fin (free)', contextWindow: 131072 },
-      { id: 'nemotron-3.5-lightning-free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 131072 },
-      { id: 'nemotron-3-ultra-free', name: 'Nemotron 3 Ultra (free)', contextWindow: 131072 }
+      { id: 'union-alpha', name: 'Union Alpha (stealth preview)', contextWindow: 262144, quality: 3 },
+      { id: 'deepseek-v4-flash-free', name: 'DeepSeek V4 Flash (free)', contextWindow: 131072, quality: 3 },
+      { id: 'muse-spark-1.3-contributor-free', name: 'Muse Spark 1.3 Contributor (free)', contextWindow: 131072, quality: 2 },
+      { id: 'muse-spark-1.2-contributor-free', name: 'Muse Spark 1.2 Contributor (free)', contextWindow: 131072, quality: 2 },
+      { id: 'mimo-v2.5-free', name: 'MiMo v2.5 (free)', contextWindow: 131072, quality: 2 },
+      { id: 'ling-3.0-flash-fin-free', name: 'Ling 3.0 Flash Fin (free)', contextWindow: 131072, quality: 2 },
+      { id: 'nemotron-3.5-lightning-free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 131072, quality: 2 },
+      { id: 'nemotron-3-ultra-free', name: 'Nemotron 3 Ultra (free)', contextWindow: 131072, quality: 3 }
     ]
   },
   {
@@ -36,8 +43,8 @@ const BUILTIN_UPSTREAMS = [
     // freeModels 置空；hy3 / mimo-v2.5 仍在 /models 在列，充值后可用。
     freeModels: [],
     models: [
-      { id: 'hy3', name: 'Hunyuan 3', contextWindow: 131072 },
-      { id: 'mimo-v2.5', name: 'MiMo v2.5', contextWindow: 131072 }
+      { id: 'hy3', name: 'Hunyuan 3', contextWindow: 131072, quality: 3 },
+      { id: 'mimo-v2.5', name: 'MiMo v2.5', contextWindow: 131072, quality: 2 }
     ]
   },
   {
@@ -53,15 +60,15 @@ const BUILTIN_UPSTREAMS = [
     // cost:0，262k 视觉，不占 :free 日额），用 freeModels 显式声明免费。
     freeModels: ['stealth/union-alpha'],
     models: [
-      { id: 'openrouter/free', name: 'OpenRouter Free Router', contextWindow: 200000, inputModalities: ['text', 'image'] },
-      { id: 'stealth/union-alpha', name: 'Stealth: Union Alpha (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
-      { id: 'inclusionai/ling-3.0-flash-vl:free', name: 'Ling 3.0 Flash VL (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
-      { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
-      { id: 'dots-studio/dots-3-note-preview:free', name: 'dots-3 Note Preview (free)', contextWindow: 512000, inputModalities: ['text', 'image'] },
-      { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super 120B (free)', contextWindow: 262144 },
-      { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 1000000 },
-      { id: 'cohere/north-mini-code:free', name: 'North Mini Code (free)', contextWindow: 256000 },
-      { id: 'poolside/laguna-s-2.1:free', name: 'Laguna S 2.1 (free)', contextWindow: 262144 }
+      { id: 'openrouter/free', name: 'OpenRouter Free Router', contextWindow: 200000, quality: 3, inputModalities: ['text', 'image'] },
+      { id: 'stealth/union-alpha', name: 'Stealth: Union Alpha (free)', contextWindow: 262144, quality: 3, inputModalities: ['text', 'image'] },
+      { id: 'inclusionai/ling-3.0-flash-vl:free', name: 'Ling 3.0 Flash VL (free)', contextWindow: 262144, quality: 2, inputModalities: ['text', 'image'] },
+      { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free)', contextWindow: 262144, quality: 2, inputModalities: ['text', 'image'] },
+      { id: 'dots-studio/dots-3-note-preview:free', name: 'dots-3 Note Preview (free)', contextWindow: 512000, quality: 2, inputModalities: ['text', 'image'] },
+      { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super 120B (free)', contextWindow: 262144, quality: 3 },
+      { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 1000000, quality: 2 },
+      { id: 'cohere/north-mini-code:free', name: 'North Mini Code (free)', contextWindow: 256000, quality: 2 },
+      { id: 'poolside/laguna-s-2.1:free', name: 'Laguna S 2.1 (free)', contextWindow: 262144, quality: 3 }
     ]
   },
   {
@@ -72,9 +79,9 @@ const BUILTIN_UPSTREAMS = [
     defaultModel: 'deepseek-v4-flash',
     freeModels: ['sensenova-6.8-flash-lite', 'sensenova-6.7-flash-lite', 'deepseek-v4-flash'],
     models: [
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', contextWindow: 1048576 },
-      { id: 'sensenova-6.8-flash-lite', name: 'SenseNova 6.8 Flash Lite', contextWindow: 262144 },
-      { id: 'sensenova-6.7-flash-lite', name: 'SenseNova 6.7 Flash Lite', contextWindow: 262144 }
+      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', contextWindow: 1048576, quality: 3 },
+      { id: 'sensenova-6.8-flash-lite', name: 'SenseNova 6.8 Flash Lite', contextWindow: 262144, quality: 2 },
+      { id: 'sensenova-6.7-flash-lite', name: 'SenseNova 6.7 Flash Lite', contextWindow: 262144, quality: 2 }
     ]
   }
 ]

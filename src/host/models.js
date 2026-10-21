@@ -16,7 +16,7 @@
       // 的种子。探测每 10 分钟强刷 + 失败触发重探，见 scheduleReprobe/probeAll。
       const probe = probeCache.get(u.id)
       if (probe && probe.models.length > 0) {
-        return applyFreeModels(probe.models.slice(), u)
+        return applyDeclaredQuality(applyFreeModels(probe.models.slice(), u), u)
       }
       const out = []
       const seen = {}
@@ -24,10 +24,28 @@
         if (seen[m.id]) continue
         seen[m.id] = true
         const e = { id: m.id, name: m.name || m.id, contextWindow: m.contextWindow || 32768, free: isFreeModelId(m.id) }
+        if (Number(m.quality) > 0) e.quality = Number(m.quality)
         withModalities(e, m)
         out.push(e)
       }
-      return applyFreeModels(out, u)
+      return applyDeclaredQuality(applyFreeModels(out, u), u)
+    }
+
+    // 质量档（1..5，数字越大越强）只能由目录/用户配置声明：插件能观测成功、
+    // 失败、延迟，但观测不到「答得好不好」，无法自行判断模型强弱。
+    // 探测结果会整表替换静态表（目录即真相），所以声明值必须在这里按 canonical
+    // 名重新贴回探测列表——否则一旦某家 /models 探通，内置/目录里的质量档就全丢。
+    function applyDeclaredQuality(list, u) {
+      const declared = new Map()
+      for (const m of (u.models || [])) {
+        if (Number(m.quality) > 0) declared.set(canonicalModelId(m.id), Number(m.quality))
+      }
+      if (declared.size === 0) return list
+      for (const m of list) {
+        const q = declared.get(canonicalModelId(m.id))
+        if (q) m.quality = q
+      }
+      return list
     }
 
     // 声明式免费标记：模型名不含 “free” 时（如 B.AI 的 hy3 / mimo-v2.5），

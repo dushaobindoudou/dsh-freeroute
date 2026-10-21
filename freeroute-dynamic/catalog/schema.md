@@ -30,6 +30,24 @@
 }
 ```
 
+### 免 Key 公共网关实例（2026-10-20 实测 200 出字，复制即用）
+
+两家无需注册/Key 的公共免费网关，同样按 `noAuth` 方式加进你自己的
+目录 JSON 或 `~/.dsh/freeroute.json` 的 `upstreams`（**不入默认目录**，
+条目归上游所有者为宜，此处仅给出实测配置）：
+
+```jsonc
+// Kilo Code：免费池 18 款，约 200 次/小时；kilo-auto/free 为自动路由
+{ "id": "jinuo", "name": "Kilo Code（免 Key）", "baseUrl": "https://api.kilo.ai/api/gateway",
+  "noAuth": true, "defaultModel": "kilo-auto/free",
+  "models": [{ "id": "kilo-auto/free", "name": "Kilo Auto Free", "contextWindow": 256000 }] }
+
+// LLM7.io：匿名 turbo 档 7 款；pro 档需付费 token
+{ "id": "llm7", "name": "LLM7.io（免 Key）", "baseUrl": "https://api.llm7.io/v1",
+  "noAuth": true, "defaultModel": "DeepSeek-V4-Flash-0731",
+  "models": [{ "id": "DeepSeek-V4-Flash-0731", "name": "DeepSeek V4 Flash", "contextWindow": 400000 }] }
+```
+
 ## upstream 条目字段
 
 | 字段 | 必填 | 说明 |
@@ -46,7 +64,29 @@
 | `freeModels` | 否 | 模型名不含 free 字样时，显式声明哪些模型免费 |
 | `noAuth` | 否 | 本机免鉴权网关声明（true 时不要求 Key） |
 | `defaultModel` | 否 | 首选模型 id |
-| `models` | 否 | 静态模型表 `[{id, name, contextWindow}]`；探测到 `/models` 后以探测为准（目录即真相） |
+| `models` | 否 | 静态模型表 `[{id, name, contextWindow, quality}]`；探测到 `/models` 后以探测为准（目录即真相），但 `quality` 会按通用名重新贴回探测结果 |
+
+## 模型质量档 `quality`（可选，1..5）
+
+auto 路由的第一排序键。插件只能观测成功/失败/延迟，观测不到「答得好不好」，
+所以模型强弱只能由目录声明；不写 = 未声明（0），排序完全退回「交集家数 →
+窗口 → 上游优先级」，行为与旧版一致。
+
+| 档位 | 含义 |
+|---|---|
+| 5 | 旗舰：前沿推理 / 编码主力 |
+| 4 | 强：大参数非旗舰 |
+| 3 | 中：正式版通用款 |
+| 2 | 轻：lite / mini / flash-lite / stealth 预览 |
+| 1 | 小或实验款：无稳定性承诺 |
+
+口径建议按 **agent 能力**（工具调用、多步任务、长上下文稳定性）评，不要按
+窗口大小评——1M 窗口的 lite 款在编码场景里通常不如 128K 的正式款。
+
+```jsonc
+{ "id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash",
+  "contextWindow": 1048576, "quality": 3 }
+```
 
 ## 兼容性
 

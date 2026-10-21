@@ -348,3 +348,8 @@ await (async function () {
 console.log('\nclient-integration: ' + passed + ' passed, ' + failed + ' failed')
 if (failed > 0) { console.log('FAILURES:\n - ' + failures.join('\n - ')); process.exit(1) }
 console.log('ALL PASS')
+// 面板 rig 里的轮询定时器不会自行释放，事件循环因此永不空转结束——这里必须
+// 显式退出。此前只在失败分支 process.exit(1)，全过时进程会一直挂着：本地
+// `npm test` 卡住，CI 的 publish 任务（prepublishOnly / npm test）同样会挂到
+// 作业超时，发布永远等不到。assert 都已同步跑完，此处退出不丢任何输出。
+process.exit(0)

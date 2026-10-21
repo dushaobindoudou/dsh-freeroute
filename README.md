@@ -43,13 +43,15 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    credentials service, never in plaintext config.
 3. **Health & failover** — failures cool down by class (auth/config 10 min,
    rate limit 60 s, others exponential backoff capped at 10 min). `auto`
-   picks the highest-priority enabled, keyed, non-cooling upstream; failures
-   before any output switch to the next candidate (empty responses included),
-   failures after output surface to the caller. A **pinned single model**
-   degrades to the `auto` chain when all of its providers fail (or sit in
-   cooldown) instead of aborting the turn — picking one model is a
-   preference, not exclusivity. Keys rotate individually on
-   AUTH / rate-limit, and a per-key failure is surfaced in the panel.
+   ranks candidates in five layers: anchor model (highest declared `quality`,
+   then the model shared by the most upstreams) → the same model on other
+   vendors → other models of the same quality band with no window downgrade →
+   models that fit the current context → everything else (sunk, never
+   dropped). A **pinned single model** degrades to the `auto` chain when all
+   of its providers fail (or sit in cooldown) instead of aborting the turn —
+   picking one model is a preference, not exclusivity. Keys rotate
+   individually on AUTH / rate-limit, and a per-key failure is surfaced in the
+   panel.
 4. **Three-layer config** — builtin catalog → remote catalog (JSON hosted on
    Cloudflare Pages/R2 for ship-free updates; native format or models.dev
    `api.json`, zero-cost models auto-filtered) → user patch persisted under

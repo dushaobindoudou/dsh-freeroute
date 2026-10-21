@@ -1,4 +1,4 @@
-const VERSION = '0.8.24'
+const VERSION = '0.9.0'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
 const UA = 'deepseek-harness/0.1.0-rc.6 (+https://github.com/deepseek-ai/deepseek-harness)'
@@ -9,6 +9,13 @@ const TRAILER = '\n__FREEROUTE_HTTP_%{http_code}__'
 // 种子表口径：2026-09-11 live 核对（GET /models 公开可探，无需 Key）。
 // 探测（目录即真相）+ 模型级失败转移会自动绕开瞬时不可用，这里只影响
 // 首探前的种子与首选拍序。
+//
+// quality（可选 1..5）是 auto 路由的第一排序键：插件只能观测成功/失败/延迟，
+// 观测不到「答案好不好」，所以模型强弱必须由目录显式声明。口径：
+//   5 旗舰（前沿推理/编码主力）  4 强（大参数非旗舰）
+//   3 中（正式版通用款）        2 轻（lite / mini / flash-lite / stealth 预览）
+//   1 小或实验（无稳定性承诺）
+// 不标注 = 未声明（0）→ 排序退回「交集家数 → 窗口 → 原有优先级」，行为不变。
 const BUILTIN_UPSTREAMS = [
   {
     id: 'opencode', name: 'OpenCode Zen',
@@ -22,14 +29,14 @@ const BUILTIN_UPSTREAMS = [
     defaultModel: 'union-alpha',
     freeModels: [],
     models: [
-      { id: 'union-alpha', name: 'Union Alpha (stealth preview)', contextWindow: 262144 },
-      { id: 'deepseek-v4-flash-free', name: 'DeepSeek V4 Flash (free)', contextWindow: 131072 },
-      { id: 'muse-spark-1.3-contributor-free', name: 'Muse Spark 1.3 Contributor (free)', contextWindow: 131072 },
-      { id: 'muse-spark-1.2-contributor-free', name: 'Muse Spark 1.2 Contributor (free)', contextWindow: 131072 },
-      { id: 'mimo-v2.5-free', name: 'MiMo v2.5 (free)', contextWindow: 131072 },
-      { id: 'ling-3.0-flash-fin-free', name: 'Ling 3.0 Flash Fin (free)', contextWindow: 131072 },
-      { id: 'nemotron-3.5-lightning-free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 131072 },
-      { id: 'nemotron-3-ultra-free', name: 'Nemotron 3 Ultra (free)', contextWindow: 131072 }
+      { id: 'union-alpha', name: 'Union Alpha (stealth preview)', contextWindow: 262144, quality: 3 },
+      { id: 'deepseek-v4-flash-free', name: 'DeepSeek V4 Flash (free)', contextWindow: 131072, quality: 3 },
+      { id: 'muse-spark-1.3-contributor-free', name: 'Muse Spark 1.3 Contributor (free)', contextWindow: 131072, quality: 2 },
+      { id: 'muse-spark-1.2-contributor-free', name: 'Muse Spark 1.2 Contributor (free)', contextWindow: 131072, quality: 2 },
+      { id: 'mimo-v2.5-free', name: 'MiMo v2.5 (free)', contextWindow: 131072, quality: 2 },
+      { id: 'ling-3.0-flash-fin-free', name: 'Ling 3.0 Flash Fin (free)', contextWindow: 131072, quality: 2 },
+      { id: 'nemotron-3.5-lightning-free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 131072, quality: 2 },
+      { id: 'nemotron-3-ultra-free', name: 'Nemotron 3 Ultra (free)', contextWindow: 131072, quality: 3 }
     ]
   },
   {
@@ -42,8 +49,8 @@ const BUILTIN_UPSTREAMS = [
     // freeModels 置空；hy3 / mimo-v2.5 仍在 /models 在列，充值后可用。
     freeModels: [],
     models: [
-      { id: 'hy3', name: 'Hunyuan 3', contextWindow: 131072 },
-      { id: 'mimo-v2.5', name: 'MiMo v2.5', contextWindow: 131072 }
+      { id: 'hy3', name: 'Hunyuan 3', contextWindow: 131072, quality: 3 },
+      { id: 'mimo-v2.5', name: 'MiMo v2.5', contextWindow: 131072, quality: 2 }
     ]
   },
   {
@@ -59,15 +66,15 @@ const BUILTIN_UPSTREAMS = [
     // cost:0，262k 视觉，不占 :free 日额），用 freeModels 显式声明免费。
     freeModels: ['stealth/union-alpha'],
     models: [
-      { id: 'openrouter/free', name: 'OpenRouter Free Router', contextWindow: 200000, inputModalities: ['text', 'image'] },
-      { id: 'stealth/union-alpha', name: 'Stealth: Union Alpha (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
-      { id: 'inclusionai/ling-3.0-flash-vl:free', name: 'Ling 3.0 Flash VL (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
-      { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free)', contextWindow: 262144, inputModalities: ['text', 'image'] },
-      { id: 'dots-studio/dots-3-note-preview:free', name: 'dots-3 Note Preview (free)', contextWindow: 512000, inputModalities: ['text', 'image'] },
-      { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super 120B (free)', contextWindow: 262144 },
-      { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 1000000 },
-      { id: 'cohere/north-mini-code:free', name: 'North Mini Code (free)', contextWindow: 256000 },
-      { id: 'poolside/laguna-s-2.1:free', name: 'Laguna S 2.1 (free)', contextWindow: 262144 }
+      { id: 'openrouter/free', name: 'OpenRouter Free Router', contextWindow: 200000, quality: 3, inputModalities: ['text', 'image'] },
+      { id: 'stealth/union-alpha', name: 'Stealth: Union Alpha (free)', contextWindow: 262144, quality: 3, inputModalities: ['text', 'image'] },
+      { id: 'inclusionai/ling-3.0-flash-vl:free', name: 'Ling 3.0 Flash VL (free)', contextWindow: 262144, quality: 2, inputModalities: ['text', 'image'] },
+      { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free)', contextWindow: 262144, quality: 2, inputModalities: ['text', 'image'] },
+      { id: 'dots-studio/dots-3-note-preview:free', name: 'dots-3 Note Preview (free)', contextWindow: 512000, quality: 2, inputModalities: ['text', 'image'] },
+      { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super 120B (free)', contextWindow: 262144, quality: 3 },
+      { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning (free)', contextWindow: 1000000, quality: 2 },
+      { id: 'cohere/north-mini-code:free', name: 'North Mini Code (free)', contextWindow: 256000, quality: 2 },
+      { id: 'poolside/laguna-s-2.1:free', name: 'Laguna S 2.1 (free)', contextWindow: 262144, quality: 3 }
     ]
   },
   {
@@ -78,9 +85,9 @@ const BUILTIN_UPSTREAMS = [
     defaultModel: 'deepseek-v4-flash',
     freeModels: ['sensenova-6.8-flash-lite', 'sensenova-6.7-flash-lite', 'deepseek-v4-flash'],
     models: [
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', contextWindow: 1048576 },
-      { id: 'sensenova-6.8-flash-lite', name: 'SenseNova 6.8 Flash Lite', contextWindow: 262144 },
-      { id: 'sensenova-6.7-flash-lite', name: 'SenseNova 6.7 Flash Lite', contextWindow: 262144 }
+      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', contextWindow: 1048576, quality: 3 },
+      { id: 'sensenova-6.8-flash-lite', name: 'SenseNova 6.8 Flash Lite', contextWindow: 262144, quality: 2 },
+      { id: 'sensenova-6.7-flash-lite', name: 'SenseNova 6.7 Flash Lite', contextWindow: 262144, quality: 2 }
     ]
   }
 ]
@@ -164,6 +171,11 @@ function sanitizeConfig(raw) {
           for (const m of c.models) {
             if (m && typeof m.id === 'string' && m.id.length > 0) {
               const mm = { id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 }
+              // 质量档（1..5）：auto 分层的第一排序键。插件自身判断不了模型好坏，
+              // 只能由目录/用户显式声明；sanitize 必须放行，否则用户 patch 里写
+              // 的 quality 会被静默丢掉（表现为「配了没生效」）。
+              const q = Math.round(Number(m.quality))
+              if (q >= 1 && q <= 5) mm.quality = q
               const im = catalogModelModalities(m)
               if (im) mm.inputModalities = im
               ms.push(mm)
@@ -266,6 +278,8 @@ function normalizeCatalogEntry(e) {
   for (const m of raw) {
     if (m && typeof m.id === 'string' && m.id.length > 0) {
       const entry = { id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 }
+      const q = Math.round(Number(m.quality))
+      if (q >= 1 && q <= 5) entry.quality = q
       const im = catalogModelModalities(m)
       if (im) entry.inputModalities = im
       models.push(entry)
@@ -789,7 +803,7 @@ function log (message) {
       // 的种子。探测每 10 分钟强刷 + 失败触发重探，见 scheduleReprobe/probeAll。
       const probe = probeCache.get(u.id)
       if (probe && probe.models.length > 0) {
-        return applyFreeModels(probe.models.slice(), u)
+        return applyDeclaredQuality(applyFreeModels(probe.models.slice(), u), u)
       }
       const out = []
       const seen = {}
@@ -797,10 +811,28 @@ function log (message) {
         if (seen[m.id]) continue
         seen[m.id] = true
         const e = { id: m.id, name: m.name || m.id, contextWindow: m.contextWindow || 32768, free: isFreeModelId(m.id) }
+        if (Number(m.quality) > 0) e.quality = Number(m.quality)
         withModalities(e, m)
         out.push(e)
       }
-      return applyFreeModels(out, u)
+      return applyDeclaredQuality(applyFreeModels(out, u), u)
+    }
+
+    // 质量档（1..5，数字越大越强）只能由目录/用户配置声明：插件能观测成功、
+    // 失败、延迟，但观测不到「答得好不好」，无法自行判断模型强弱。
+    // 探测结果会整表替换静态表（目录即真相），所以声明值必须在这里按 canonical
+    // 名重新贴回探测列表——否则一旦某家 /models 探通，内置/目录里的质量档就全丢。
+    function applyDeclaredQuality(list, u) {
+      const declared = new Map()
+      for (const m of (u.models || [])) {
+        if (Number(m.quality) > 0) declared.set(canonicalModelId(m.id), Number(m.quality))
+      }
+      if (declared.size === 0) return list
+      for (const m of list) {
+        const q = declared.get(canonicalModelId(m.id))
+        if (q) m.quality = q
+      }
+      return list
     }
 
     // 声明式免费标记：模型名不含 “free” 时（如 B.AI 的 hy3 / mimo-v2.5），
@@ -1390,33 +1422,8 @@ function log (message) {
     const REQUEST_MAX_SECONDS = 600
 
     function candidatesSync(pool, model) {
-      if (model === 'auto') {
-        // 同模型跨厂商优先：A/B 都提供 DeepSeek-3.5-flash 时，先在提供同款
-        // 模型的厂商之间轮换，全部不可用才轮到其他模型。
-        const out = []
-        const seen = {}
-        const push = function (u, mid) {
-          const k = u.id + '|' + mid
-          if (seen[k]) return
-          if (!mergedModels(u).some(function (m) { return m.id === mid })) return
-          seen[k] = true
-          out.push({ upstream: u, model: mid })
-        }
-        if (pool.length > 0) {
-          const primary = defaultModelFor(pool[0])
-          if (primary) {
-            const gen = canonicalModelId(primary)
-            for (const u of pool) {
-              const mm = mergedModels(u).find(function (x) { return canonicalModelId(x.id) === gen })
-              if (mm) push(u, mm.id)
-            }
-          }
-        }
-        for (const u of pool) {
-          for (const mid of modelCandidatesFor(u)) push(u, mid)
-        }
-        return out
-      }
+      // auto 走 autoChain（质量/交集/容量三层排序），不在这里处理——本函数只
+      // 负责「点名某个模型」的派发顺序：同 id 优先，其次提供该模型的其他上游。
       const slash = model.indexOf('/')
       if (slash > 0) {
         const pid = model.slice(0, slash)
@@ -1449,6 +1456,185 @@ function log (message) {
         }
       } catch (e) { }
       return 0
+    }
+
+    // ---- auto 候选链：质量 / 交集 / 容量 三层排序 ----
+    // 判断依据按优先级从高到低：
+    //   ① quality —— 目录声明的质量档（1..5）。插件只能观测成功/失败/延迟，
+    //      观测不到「答得好不好」，所以模型强弱必须由目录显式声明；
+    //   ② coverage —— 同一款模型被多少家上游同时提供（交集家数）。交集越大，
+    //      「同款模型跨厂商」这条零损耗的故障转移链越深：免费池天天限流，
+    //      一个 5 家都在的模型比一个只有 1 家的小众预览款可靠得多；
+    //   ③ window —— 上下文容量。只用来兜住「别把当前会话塞进放不下的模型」，
+    //      不再拿它当「最好」的判据（窗口大 ≠ 能力强，1M 窗口的 lite 款
+    //      在工具调用密集的场景里比 128K 的正式版差得多）。
+    // 三者都分不出高下时保持原首选（池首上游的默认模型）——只有严格更优才
+    // 替换，所以未声明 quality 的既有配置行为不变。
+
+    // 本次请求的上下文占用粗估（token）。只用于分层排序，不做硬校验：
+    // CJK 约 1.6 字符/token，其余约 3.5 字符/token，末尾加响应预留与 10% 余量。
+    function estimateContextTokens(options) {
+      if (!options) return 0
+      let cjk = 0
+      let other = 0
+      const addStr = function (s) {
+        for (let i = 0; i < s.length; i++) {
+          if (s.charCodeAt(i) > 0x2e80) cjk++
+          else other++
+        }
+      }
+      const addBlocks = function (blocks) {
+        if (typeof blocks === 'string') { addStr(blocks); return }
+        if (!Array.isArray(blocks)) return
+        for (const b of blocks) {
+          if (!b || typeof b !== 'object') continue
+          if (typeof b.text === 'string') addStr(b.text)
+          if (typeof b.arguments === 'string') addStr(b.arguments)
+          if (typeof b.content === 'string') addStr(b.content)
+          else if (Array.isArray(b.content)) addBlocks(b.content)
+          if (b.type === 'image' || b.type === 'image_url') other += 1024
+        }
+      }
+      if (typeof options.system === 'string') addStr(options.system)
+      for (const m of (options.messages || [])) addBlocks(m && m.content)
+      if (Array.isArray(options.tools) && options.tools.length > 0) addStr(JSON.stringify(options.tools))
+      const tokens = cjk / 1.6 + other / 3.5
+      if (!(tokens > 0)) return 0
+      const reserve = Number(options.maxTokens) > 0 ? Math.min(Number(options.maxTokens), 8192) : 4096
+      return Math.ceil(tokens * 1.1) + reserve
+    }
+
+    // 一家上游可参与 auto 的模型：默认模型 + 全部免费模型（去重，顺序即优先）。
+    // 只算免费款是刻意的——auto 的承诺是「免费额度内自动切换」，付费模型只在
+    // 被点名（freeroute/<id> 或通用名）时才派发。
+    function eligibleModels(u) {
+      const out = []
+      const seen = {}
+      const def = defaultModelFor(u)
+      const list = mergedModels(u)
+      const push = function (m) {
+        if (!m || !m.id || seen[m.id]) return
+        seen[m.id] = true
+        out.push(m)
+      }
+      for (const m of list) { if (m.id === def) push(m) }
+      for (const m of list) { if (m.free === true) push(m) }
+      return out
+    }
+
+    // 池内按 canonical 模型名聚合：质量取各家声明最高值、窗口取最大值
+    // （同一款模型在不同网关标称窗口可能不同），providers 保持池的优先级序。
+    function modelAggregates(pool) {
+      const map = new Map()
+      for (const u of pool) {
+        for (const m of eligibleModels(u)) {
+          const cid = canonicalModelId(m.id)
+          if (!cid || cid === 'auto') continue
+          let a = map.get(cid)
+          if (!a) {
+            a = { cid: cid, quality: 0, window: 0, coverage: 0, providers: [], order: map.size }
+            map.set(cid, a)
+          }
+          const w = Number(m.contextWindow) || 0
+          if (w > a.window) a.window = w
+          const q = Number(m.quality) || 0
+          if (q > a.quality) a.quality = q
+          if (!a.providers.some(function (p) { return p.upstream.id === u.id })) {
+            a.providers.push({ upstream: u, model: m.id, window: w })
+          }
+        }
+      }
+      for (const a of map.values()) a.coverage = a.providers.length
+      return map
+    }
+
+    let lastAnchorNote = ''
+    function noteAnchor(a, floor, n3, n4, n5) {
+      const sig = a.cid + '|' + a.quality + '|' + a.coverage + '|' + a.window + '|' + floor + '|' + n3 + ',' + n4 + ',' + n5
+      if (sig === lastAnchorNote) return
+      lastAnchorNote = sig
+      log('[freeroute] auto 锚点 → ' + a.cid + '（质量 ' + a.quality + ' · 交集 ' + a.coverage + ' 家 · 窗口 ' + a.window + '）'
+        + '；备用层 同档 ' + n3 + ' / 够容量 ' + n4 + ' / 兜底 ' + n5 + '（容量下限 ' + floor + '）')
+    }
+
+    // auto 的全部候选，按层输出：
+    //   ① 锚点模型的池内首选提供方
+    //   ② 同款模型的其他厂商（能力与窗口都不变，最无损的一次转移）
+    //   ③ 同质量档且窗口不低于锚点的其他模型（换模型但不掉容量）
+    //   ④ 窗口不低于容量下限的其他模型
+    //   ⑤ 其余（只在前四层全挂时兜底，沉底不删除）
+    // MAX_CHAIN 给链长封顶：免费池里「每个 cid 的全家提供方」可能是几十条，
+    // 逐条试错会把首字延迟抬到不可接受。
+    //
+    // floor = max(本次请求粗估占用, 粘性实际服务窗口)：前者保证不会把已经长大
+    // 的会话塞进装不下的模型，后者保证跨请求不来回抖动（根因 D）。装不下的
+    // 锚点会被「装得下的最优候选」顶替，但候选本身一个都不删——全部装不下时
+    // 仍按原顺序试，让错误信息来自真实上游而不是路由器的猜测。
+    const MAX_CHAIN = 12
+    function autoChain(pool, floor) {
+      const agg = modelAggregates(pool)
+      if (agg.size === 0) return []
+      const seed = agg.get(canonicalModelId(defaultModelFor(pool[0]))) || null
+      let anchor = seed
+      for (const a of agg.values()) {
+        if (!anchor) { anchor = a; continue }
+        if (a.quality > anchor.quality) { anchor = a; continue }
+        if (a.quality === anchor.quality && a.coverage > anchor.coverage) anchor = a
+      }
+      // 容量可行性优先于质量与交集：锚点装不下本次会话时，改挑装得下里最好的。
+      // 窗口未知（0）不当作「装不下」——网关没报 context_length 时，旧逻辑也
+      // 把它当同窗放行，这里保持一致，否则一个没报窗口的目录会被整条踢下去。
+      if (floor > 0 && anchor && anchor.window > 0 && anchor.window < floor) {
+        let best = null
+        for (const a of agg.values()) {
+          if (a.window < floor) continue
+          if (!best
+            || a.quality > best.quality
+            || (a.quality === best.quality && a.coverage > best.coverage)
+            || (a.quality === best.quality && a.coverage === best.coverage && a.window > best.window)) best = a
+        }
+        if (best) anchor = best
+      }
+      const chain = []
+      const used = new Set()
+      const emit = function (a) {
+        for (const p of a.providers) {
+          if (chain.length >= MAX_CHAIN) return
+          const k = p.upstream.id + '|' + p.model
+          if (used.has(k)) continue
+          used.add(k)
+          chain.push({ upstream: p.upstream, model: p.model })
+        }
+      }
+      emit(anchor)
+      const tier3 = []
+      const tier4 = []
+      const tier5 = []
+      for (const a of agg.values()) {
+        if (a === anchor) continue
+        if (a.quality === anchor.quality && (a.window === 0 || a.window >= anchor.window)) tier3.push(a)
+        else if (a.window === 0 || a.window >= floor) tier4.push(a)
+        else tier5.push(a)
+      }
+      // 层内排序：质量档 → 用户优先级 → 交集家数 → 窗口。
+      // 「用户优先级」排在交集之前，是为了让同一家上游的多个模型保持相邻：
+      // 某个模型下线时能立刻换到同家的备选，而不是把整家上游错误地冷却掉
+      // （chaseChain 的 suppressCooldown 依赖「下一个候选还在同一家」）。
+      const byScore = function (x, y) {
+        if (y.quality !== x.quality) return y.quality - x.quality
+        if (x.order !== y.order) return x.order - y.order
+        if (y.coverage !== x.coverage) return y.coverage - x.coverage
+        if (y.window !== x.window) return y.window - x.window
+        return 0
+      }
+      tier3.sort(byScore)
+      tier4.sort(byScore)
+      tier5.sort(byScore)
+      for (const a of tier3) emit(a)
+      for (const a of tier4) emit(a)
+      for (const a of tier5) emit(a)
+      noteAnchor(anchor, floor, tier3.length, tier4.length, tier5.length)
+      return chain
     }
 
     // 最近一次成功服务的上下文窗口（粘性基准）。会话在大窗口上游上积累出
@@ -1500,13 +1686,17 @@ function log (message) {
       return same.concat(smaller)
     }
 
-    async function candidatesFor(model) {
+    async function candidatesFor(model, need) {
       const enabled = orderedUpstreams().filter(function (u) { return isEnabled(u.id) })
       const keyed = []
       for (const u of enabled) { if (await hasCredential(u)) keyed.push(u) }
       if (keyed.length === 0) return []
       const healthy = keyed.filter(function (u) { return !cooling(u.id) })
       const pool = healthy.length > 0 ? healthy : keyed.slice().sort(function (a, b) { return ((health.get(a.id) || {}).cooldownUntil || 0) - ((health.get(b.id) || {}).cooldownUntil || 0) })
+      // 容量下限 floor = 本次请求粗估占用 与 粘性实际服务窗口 的较大值：
+      // 前者防止把已经长大的会话塞进装不下的模型，后者防止跨请求抖动。
+      const floor = Math.max(Number(need) || 0, lastServedWindow)
+      if (model === 'auto') return autoChain(pool, floor)
       return tierByContextWindow(candidatesSync(pool, model))
     }
 
@@ -1580,7 +1770,8 @@ function log (message) {
 
     async function* failoverStream(options) {
       const isAuto = options.model === 'auto'
-      const cands = await candidatesFor(options.model)
+      const need = estimateContextTokens(options)
+      const cands = await candidatesFor(options.model, need)
       if (cands.length === 0 && isAuto) {
         throw mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
       }
@@ -1606,7 +1797,7 @@ function log (message) {
       // 用户选单个模型表达的是「偏好」，不是「宁可失败也不用别家」。
       const tried = new Set()
       for (const c of cands) tried.add(c.upstream.id + '|' + c.model)
-      const fb = (await candidatesFor('auto')).filter(function (c) { return !tried.has(c.upstream.id + '|' + c.model) })
+      const fb = (await candidatesFor('auto', need)).filter(function (c) { return !tried.has(c.upstream.id + '|' + c.model) })
       if (fb.length === 0) {
         // 原始错误比笼统的 NO_UPSTREAM 更有诊断价值
         if (primaryErr) throw primaryErr

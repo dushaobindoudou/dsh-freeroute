@@ -4,6 +4,92 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0]
+
+### Added
+
+- **模型质量档 `quality`（可选，1..5）**：auto 路由的第一排序键。插件能观测
+  成功/失败/延迟，但观测不到「答得好不好」，所以模型强弱必须由目录显式声明；
+  未声明（0）时完全退回原有优先级序，既有配置行为不变。声明位置：内置种子表、
+  远程目录的 `models[].quality`、或 `~/.dsh/freeroute.json` 的
+  `upstreams.<id>.custom.models[].quality`（sanitize 已放行，不会被静默丢弃）。
+  探测结果整表替换静态表时，声明值按 canonical 名重新贴回，不会因某家
+  `/models` 探通而丢失。
+- **交集家数（coverage）作为第二排序键**：同一款模型被多少家上游同时提供。
+  交集越大，「同款模型跨厂商」这条零损耗故障转移链越深——免费池天天限流，
+  一个 5 家都在的模型比只有 1 家的小众预览款可靠得多。
+- **auto 候选链显式分层**（此前只有「同模型跨厂商 + 按上游优先级」两段）：
+  ① 锚点模型的首选提供方 → ② 同款模型的其他厂商（能力与窗口不变，最无损）
+  → ③ 同质量档且窗口不低于锚点的其他模型（换模型但不掉容量）→ ④ 窗口不低于
+  容量下限的其他模型 → ⑤ 其余兜底（沉底不删除）。
+- **按本次请求估算上下文占用**：用 `messages` + `tools` 的字符量粗估 token
+  （CJK 1.6 字符/token、其余 3.5，另加响应预留与 10% 余量），与粘性窗口取较大
+  值作为容量下限。此前容量下限只看进程级粘性窗口，新会话会继承上一个会话的
+  大窗口基准。
+
+### Changed
+
+- **锚点不再以「窗口最大」为准**：窗口大 ≠ 能力强——1M 窗口的 lite 款在工具
+  调用密集的编码场景里远不如 128K 的正式款。窗口只在「本次会话装不下」时才
+  参与决策（容量可行性优先于质量），未知窗口（网关未报 `context_length`）
+  不当作装不下，与旧行为一致。
+- **层内排序为「质量档 → 用户优先级 → 交集家数 → 窗口」**：用户优先级排在
+  交集之前是刻意的，让同一家上游的多个模型保持相邻，某个模型下线时能立刻换到
+  同家备选，而不是把整家上游错误地冷却掉。
+- 链长上限 12（`MAX_CHAIN`）：免费池里「每个模型的全家提供方」可能有几十条，
+  逐条试错会把首字延迟抬到不可接受。
+
+### Fixed
+
+- 集成测试里三段「模型级故障转移 / Key 轮换 / 失败触发重探」依赖前面各段
+  遗留的已启用上游来兜底，池子一旦被清干净就整条链失败；现在每段先用
+  `isolatePool()` 清空上游池，再布置本段 mock，断言不再随执行顺序漂移。
+
+## [0.8.25]（未单独发布，内容并入 0.9.0）
+
+### Added
+
+- **两家免 Key 免费网关实测可用（示例配置，未入默认目录）**：按目录 schema
+  惯例，免鉴权自建/第三方网关不入默认目录，示例见 `schema.md`；两者均已
+  实测 200 出字，可直接复制进 `~/.dsh/freeroute.json` 的 `upstreams`：
+  - **Kilo Code**（`https://api.kilo.ai/api/gateway`，`noAuth: true`）：免费池
+    18 款，约 200 次/小时（远宽于 OpenRouter `:free` 的 50 次/天），
+    `kilo-auto/free` 为自动路由；`kilo-auto/free` / `xing4.0-29b-a4b` /
+    `minimax-m3.1-flash` 实测 200 出字；国内可直连。
+  - **LLM7.io**（`https://api.llm7.io/v1`，`noAuth: true`）：匿名 turbo 档
+    7 款（DeepSeek-V4-Flash-0731 / GLM-5.3-Flash / gpt-oss:20b / minimax-m2.7
+    / nemotron-3-nano:30b / codestral-latest / mistral-Nemo），实测 200 出字；
+    pro 档需付费 token；国内可直连。
+
+### Changed
+
+- **目录 2026-10-20 全上游 live 复查**（12 上游逐一 `/models` + chat 实测；
+  远程双源部署后旧版插件免升级热拉取，本版同步仓库备份副本）：
+  - **openrouter**：`:free` 15→18——minimax/minimax-m3.1-flash:free（1M，
+    text+image+video）、nvidia/nemotron-3.5-super-vl:free（1M 多模态，18s
+    偏慢）、xingchen-agi/xing4.0-29b-a4b:free（262k，中文推理）实测 200
+    收入；lyria 系 $0 但为音乐生成，不收录。
+  - **nvidia**：免费面 8→10——nemotron-3.5-super-vl-120b-a12b（825ms）、
+    step-5-preview（21s）、muse-glimmer-30b（7.5s）收入；kimi-k3 已从
+    `/models` 下架移除；kimi-k2.6 在列但 404 未开通、deepseek-v4.1-flash
+    与 gemma-4-31b 两轮超时不收录。
+  - **opencode**：`-free` 收敛为 9 款（space-bunny-free 已废弃并被上游引导
+    改用 minimax-m3.1-flash-free，默认模型随切）；**本机两把 Key 均已过期**
+    （`401 api_key_expired`，重新登录不会续期，需到 Console 重新生成）；
+    免费档客户端围栏（FreeTierError）仍未解，第三方直调不可用。
+  - **orcarouter**：`deepseek/deepseek-v4.1-flash-free`（1M、text+image）上新
+    收录，实测仍撞 GitHub 账号年龄围栏 429；`orcarouter/fusion/auto` 系为
+    付费款不收录；`orcarouter/free` 实测 402 allowance used up。
+  - **aihubmix**：`-free` 命名 44→47——qwen3.8-flash-free / qwen3.8-max-free
+    收录（撞账号 10 次试用门，计费未验）；ling-3.0-flash-free 仍 400
+    cannot be served，维持观察。
+  - **b-ai**：`/models` 2→62 款（hy4-preview、glm-5.3-flash、kimi-k3 等），
+    零余额实测全 400 credit insufficient balance，免费档仍未恢复。
+  - **amd-radeon**：11 款对话模型无下架；新增 5 款非对话（SystemOne / OCR /
+    TTS 端点）不收录。
+  - **sensenova / zenmux / askdiandian**：现役款复测 200，名单无增删
+    （u1.5-lite 404、deepseek-v4.1-flash 403 plan 未开放）。
+
 ## [0.8.24]
 
 ### Changed
