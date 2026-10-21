@@ -4,6 +4,33 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.1]
+
+### Fixed
+
+- **持续输出的长推理不再被 600s 整次上限砍断**：0.10.0 只解决了「出字前排队」，
+  出字快但推理很长（实测首 token 25s、整段超过 600s）仍会在已出字后被 curl
+  `--max-time 600` 砍断、无法切换，整轮失败。现在按阶段约束：
+  - 出字前：首 token 超时（默认 90s）；链上最后一个候选放宽到 600s（此前
+    不设限）。
+  - 出字后：**内容空闲**检测，连续 120s 没有新内容（只剩心跳也算）才中止，
+    `FREEROUTE_CONTENT_IDLE_SECONDS` 可调；内容还在流就不砍。
+  - curl `--max-time` 提到 3600s，只作失控兜底。
+
+### Changed
+
+- **auto 链层内按首 token 耗时沉底慢提供方**：按「上游|模型」记录首 token
+  耗时（指数平均，首 token 超时按超时值记入），超过首 token 超时阈值一半
+  （默认 45s）的提供方沉到所在层的末尾——稳定排序，不跨层、不删除；样本
+  30 分钟后过期，网关恢复了会回到原位。此前 `glm-5.3-flash @ amd-radeon`
+  这类排队数分钟的网关会长期占着链首，每次都要等满首 token 超时才切走。
+  注意：链首换成同层另一家时，auto 上报窗口取新链首的窗口（仍装得下本次会话）。
+
+### Tests
+
+- `integration.mjs` 第 22b 段：持续出字超过空闲上限不被砍、出字后只剩心跳被
+  中止且报错/日志说明原因、首 token 慢的提供方第二次请求被同款快提供方超过。
+
 ## [0.10.0]
 
 ### Added

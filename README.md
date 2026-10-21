@@ -53,8 +53,10 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    of its providers fail (or sit in cooldown) instead of aborting the turn —
    picking one model is a preference, not exclusivity. An upstream that emits
    no token within 90 s (queued, or only sending SSE keep-alives) also fails
-   over; the last candidate in the chain has no such limit. Tune with
-   `FREEROUTE_FIRST_TOKEN_SECONDS` (`0` disables). Keys rotate
+   over (the last candidate gets 600 s), and slow-to-first-token providers sink
+   to the end of their layer. Once tokens flow, a stream is only cut after
+   120 s with no new content. Tune with `FREEROUTE_FIRST_TOKEN_SECONDS`
+   (`0` disables) and `FREEROUTE_CONTENT_IDLE_SECONDS`. Keys rotate
    individually on AUTH / rate-limit, and a per-key failure is surfaced in the
    panel.
 4. **Three-layer config** — builtin catalog → remote catalog (JSON hosted on

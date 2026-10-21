@@ -53,14 +53,20 @@
       let proc = null
       // 首 token 超时（根因 E）：免费网关常见「接了连接、只发 SSE 心跳注释、
       // 排队数分钟才吐第一个 token」。心跳也是字节，骗过了 --speed-time；随后
-      // 才开始的慢推理又会撞上 --max-time，在出字后被砍——此时已无法切换上游，
+      // 才开始的慢推理又会撞上整次上限，在出字后被砍——此时已无法切换上游，
       // 整轮失败。出字前超过 firstTokenMs 即主动中止并抛 TIMEOUT，chaseChain
-      // 照常切下一家；hooks 不传（如链上最后一个候选）则不设此限，宁慢勿败。
+      // 照常切下一家（末位候选传 PRE_CONTENT_MAX_MS）；hooks 不传则不设此限。
       const ttftMs = (hooks && hooks.firstTokenMs > 0) ? hooks.firstTokenMs : 0
       let firstSeen = false
       let ttftHit = false
       let ttftDispose = null
       const stopTtft = function () { if (ttftDispose) { try { ttftDispose() } catch (e) { } ttftDispose = null } }
+      // 出字后的内容空闲检测：取代原先的 600s 整次上限——只要内容还在持续流出
+      // 就不砍（慢推理在出字后被砍断、无法切换，正是整轮失败的来源）；出字后
+      // 连续 CONTENT_IDLE_MS 没有新内容（只剩心跳也算）才中止。
+      let lastDeltaAt = 0
+      let idleHit = false
+      let idleDispose = null
       try {
         const key = keyEntry.key
         const curl = await ensureCurl()
@@ -104,9 +110,15 @@
           ttftDispose = timer.timeout(function () {
             if (firstSeen) return
             ttftHit = true
+            noteFirstToken(upstream.id, model, ttftMs)
             try { proc.terminate() } catch (e) { }
           }, ttftMs)
         }
+        idleDispose = timer.interval(function () {
+          if (!firstSeen || idleHit || Date.now() - lastDeltaAt < CONTENT_IDLE_MS) return
+          idleHit = true
+          try { proc.terminate() } catch (e) { }
+        }, Math.max(50, Math.min(5000, Math.floor(CONTENT_IDLE_MS / 4))))
         const tr = createTranslator()
         // 配额通知嗅探：部分网关（如 aihubmix）配额用尽时返回 HTTP 200 + 一段
         // 纯文本提示而非错误码。传输层看到 200 视为成功，提示会被当成「正常
@@ -119,7 +131,10 @@
         try {
           for await (const bytes of proc.stdout) {
             for (const ck of tr.feed(bytes)) {
-              if (!firstSeen && DELTA_TYPES.indexOf(ck.type) >= 0) { firstSeen = true; stopTtft() }
+              if (DELTA_TYPES.indexOf(ck.type) >= 0) {
+                lastDeltaAt = Date.now()
+                if (!firstSeen) { firstSeen = true; stopTtft(); noteFirstToken(upstream.id, model, lastDeltaAt - startedAt) }
+              }
               if (sniffing && ck.type === 'text-delta') {
                 acc += ck.text
                 // 只匹配窗口内子串：单块超窗时避免窗口外的词误伤
@@ -151,6 +166,9 @@
           if (ttftHit && !firstSeen) {
             throw mkFail('上游 ' + upstream.id + ' 模型 ' + model + ' 在 ' + Math.round(ttftMs / 1000) + 's 内未输出首个 token（排队或心跳空转），已中止', 'TIMEOUT')
           }
+          if (idleHit) {
+            throw mkFail('上游流在结束前中断（出字后连续 ' + Math.round(CONTENT_IDLE_MS / 1000) + 's 无新内容被中止；已运行 ' + Math.round((Date.now() - startedAt) / 1000) + 's）', 'STREAM_CLOSED')
+          }
           // 流在 [DONE] 前中断时，把中断原因（整次上限 / 读空闲 / 连接被重置等）
           // 附到错误上；否则只剩笼统的「上游流在结束前中断」（根因 C 诊断）。
           if ((e && e.code) === 'STREAM_CLOSED' && proc) {
@@ -175,6 +193,7 @@
         throw err
       } finally {
         stopTtft()
+        if (idleDispose) { try { idleDispose() } catch (e) { } }
         if (!completed && proc) { try { proc.terminate() } catch (e) { } }
       }
     }
@@ -229,7 +248,12 @@
     // 不会被小上限误杀，但「连接后完全不吐数据」的静默卡死会在 90s / 600s 内
     // 被中止（此前只有 connect-timeout，实测挂过 ~16 分钟）。阈值可按需调整。
     const STALL_IDLE_SECONDS = 90
-    const REQUEST_MAX_SECONDS = 600
+    // 整次请求上限只作失控兜底：出字前由首 token 超时（末位候选为
+    // PRE_CONTENT_MAX_MS）约束，出字后由内容空闲检测约束。0.10.0 及以前是
+    // 600s，持续输出的长推理会在出字后被它砍断、无法切换，整轮失败。
+    const REQUEST_MAX_SECONDS = 3600
+    // 末位候选没有退路，首 token 可以多等，但不无限等：沿用旧的 600s。
+    const PRE_CONTENT_MAX_MS = 600000
     // 首 token 超时（根因 E，见 attemptWithKey）：默认 90s，与读空闲同档。
     // 实测 4～5.6 万 token 输入时正常上游 25～50s 出首 token，慢的免费网关
     // 排队 4～7 分钟。环境变量 FREEROUTE_FIRST_TOKEN_SECONDS 可覆盖（0 关闭）。
@@ -238,6 +262,30 @@
       const v = Number(env.FREEROUTE_FIRST_TOKEN_SECONDS)
       return (env.FREEROUTE_FIRST_TOKEN_SECONDS !== undefined && isFinite(v) && v >= 0) ? Math.round(v * 1000) : 90000
     })()
+    // 出字后内容空闲上限（默认 120s；FREEROUTE_CONTENT_IDLE_SECONDS 可覆盖，供测试缩短）。
+    const CONTENT_IDLE_MS = (function () {
+      const env = (typeof process === 'object' && process !== null && process.env) ? process.env : {}
+      const v = Number(env.FREEROUTE_CONTENT_IDLE_SECONDS)
+      return (env.FREEROUTE_CONTENT_IDLE_SECONDS !== undefined && isFinite(v) && v > 0) ? Math.round(v * 1000) : 120000
+    })()
+
+    // 首 token 耗时记账（按「上游|模型」）：auto 链在每层内把慢的提供方沉到
+    // 层尾。首 token 超时按超时值记入。只看最近 SLOW_MEMORY_MS 内的样本，
+    // 过期后慢提供方回到原位重新试，网关恢复了也能回来。
+    // 「慢」= 首 token 超过超时阈值的一半（默认 45s）；超时关闭时按 45s。
+    const SLOW_TTFT_MS = FIRST_TOKEN_MS > 0 ? Math.round(FIRST_TOKEN_MS / 2) : 45000
+    const SLOW_MEMORY_MS = 30 * 60 * 1000
+    const firstTokenStats = new Map() // 'upstream|model' -> { ewmaMs, at }
+    function noteFirstToken(upstreamId, model, ms) {
+      const k = upstreamId + '|' + model
+      const prev = firstTokenStats.get(k)
+      const fresh = prev && Date.now() - prev.at < SLOW_MEMORY_MS
+      firstTokenStats.set(k, { ewmaMs: fresh ? Math.round(prev.ewmaMs * 0.5 + ms * 0.5) : ms, at: Date.now() })
+    }
+    function isSlow(upstreamId, model) {
+      const e = firstTokenStats.get(upstreamId + '|' + model)
+      return !!(e && Date.now() - e.at < SLOW_MEMORY_MS && e.ewmaMs > SLOW_TTFT_MS)
+    }
 
     function candidatesSync(pool, model) {
       // auto 走 autoChain（质量/交集/容量三层排序），不在这里处理——本函数只
@@ -460,6 +508,14 @@
           else tiers[2].push(p)
         }
       }
+      // 层内把首 token 慢的提供方沉到层尾（稳定排序，不跨层、不删除）：排队
+      // 数分钟的免费网关不再长期占着链首，首 token 超时也就不必每次都等满。
+      for (let t = 0; t < tiers.length; t++) {
+        const fast = tiers[t].filter(function (p) { return !isSlow(p.upstream.id, p.model) })
+        if (fast.length !== tiers[t].length) {
+          tiers[t] = fast.concat(tiers[t].filter(function (p) { return isSlow(p.upstream.id, p.model) }))
+        }
+      }
       const chain = []
       const used = new Set()
       for (const tier of tiers) {
@@ -584,13 +640,14 @@
         const sameUpNext = !!(cands[i + 1] && cands[i + 1].upstream.id === cand.upstream.id)
         const sameUpLater = cands.slice(i + 1).some(function (c) { return c.upstream.id === cand.upstream.id })
         const suppress = function (e) { return sameUpLater && !UPSTREAM_LEVEL_CODES.has(String((e && e.code) || '')) }
-        // 后面已无可试候选时不设首 token 超时：没有退路，等慢上游总好过直接失败。
+        // 后面已无可试候选时首 token 放宽到 PRE_CONTENT_MAX_MS：没有退路，等慢
+        // 上游总好过直接失败（但不无限等）。
         const lastTry = (maxAttempts > 0 && attempts >= maxAttempts) ||
           !cands.slice(i + 1).some(function (c) { return !dead.has(c.upstream.id) })
         let produced = false
         let emptyFinish = null
         try {
-          for await (const ck of attempt(cand.upstream, cand.model, options, { suppressCooldown: suppress, firstTokenMs: lastTry ? 0 : FIRST_TOKEN_MS })) {
+          for await (const ck of attempt(cand.upstream, cand.model, options, { suppressCooldown: suppress, firstTokenMs: lastTry ? PRE_CONTENT_MAX_MS : FIRST_TOKEN_MS })) {
             if (DELTA_TYPES.indexOf(ck.type) >= 0) produced = true
             if (ck.type === 'finish' && (!ck.reason || ck.reason.kind === 'error') && !produced) {
               // 上游异常终止（如空响应）且尚未产出任何内容：视为该次尝试失败，

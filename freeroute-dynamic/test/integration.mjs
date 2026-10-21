@@ -32,9 +32,12 @@ process.env.FREEROUTE_CONFIG = CFG
 const LOG_HOME = __os.tmpdir() + '/freeroute-test-home-' + process.pid
 process.env.DSH_HOME = LOG_HOME
 const LOG_FILE = LOG_HOME + '/freeroute/freeroute.log'
-// 首 token 超时缩到 0.6s，第 22 段才能在秒级内验证「出字前慢 → 切换」。
+// 首 token 超时缩到 2s（慢阈值随之为 1s），第 22 段才能在秒级内验证「出字前慢
+// → 切换」；各计时之间留足 ≥0.6s 余量，门禁并发跑多版本 Node 时不抖。
 // 其余 mock 都是立即出字，不受影响。
-process.env.FREEROUTE_FIRST_TOKEN_SECONDS = '0.6'
+process.env.FREEROUTE_FIRST_TOKEN_SECONDS = '2'
+// 出字后内容空闲上限缩到 0.8s（第 22b 段）；其余 mock 出字后都是一口气发完。
+process.env.FREEROUTE_CONTENT_IDLE_SECONDS = '0.8'
 
 const pkg = JSON.parse(readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8'))
 const body = readFileSync(path.join(here, '..', 'host.js'), 'utf8')
@@ -1459,7 +1462,7 @@ section('22. 首 token 超时：只发心跳不出字的上游被中止并切换
     res.on('close', function () { clearInterval(beat) })
   }
   await isolatePool()
-  const portTtSlow = await listen('ttSlow', mkSlow('SLOW', 6000))
+  const portTtSlow = await listen('ttSlow', mkSlow('SLOW', 9000))
   const portTtFast = await listen('ttFast', mkText('FAST'))
   await rpc('freeroute.apply-patch', { patch: { order: ['tt-slow', 'tt-fast'], upstreams: {
     'tt-slow': { enabled: true, custom: { noAuth: true, baseUrl: b(portTtSlow), models: [{ id: 'tt-free', name: 'TT', contextWindow: 131072 }], defaultModel: 'tt-free' } },
@@ -1469,19 +1472,19 @@ section('22. 首 token 超时：只发心跳不出字的上游被中止并切换
   const rtt = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
   const dt = Date.now() - t0
   check('首 token 超时后切到下一家（FAST）', rtt.text === 'FAST', JSON.stringify(rtt.text))
-  // 慢上游 6s 才出字；阈值留足余量，避免门禁并发跑多版本 Node 时计时抖动误报
-  check('没有等慢上游出字（< 4s）', dt < 4000, String(dt))
+  // 慢上游 9s 才出字、首 token 超时 2s；阈值留足余量，避免并发计时抖动误报
+  check('没有等慢上游出字（< 6s）', dt < 6000, String(dt))
   check('日志记录 TIMEOUT 切换', /tt-slow 模型 tt-free 失败\(TIMEOUT\)，切换到 tt-fast/.test(readLog()))
 
   // 末位候选：后面没有退路，不设首 token 超时，等它慢慢出字
   //（tt-slow 刚因超时进了冷却，换一家全新的慢上游）
-  const portTtSolo = await listen('ttSolo', mkSlow('SLOW', 1500))
+  const portTtSolo = await listen('ttSolo', mkSlow('SLOW', 3000))
   await rpc('freeroute.apply-patch', { patch: { order: ['tt-solo'], upstreams: {
     'tt-slow': { enabled: false }, 'tt-fast': { enabled: false },
     'tt-solo': { enabled: true, custom: { noAuth: true, baseUrl: b(portTtSolo), models: [{ id: 'solo-tt-free', name: 'ST', contextWindow: 131072 }], defaultModel: 'solo-tt-free' } }
   } } })
   const rlast = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
-  check('末位候选不设首 token 超时（SLOW）', rlast.text === 'SLOW', JSON.stringify(rlast.text))
+  check('末位候选放宽首 token 上限、照常等到出字（SLOW）', rlast.text === 'SLOW', JSON.stringify(rlast.text))
 
   // 出字后被断：无法切换，报错带中断原因，freeroute.log 留一行
   const portTtCut = await listen('ttCut', (req, res) => {
@@ -1499,6 +1502,73 @@ section('22. 首 token 超时：只发心跳不出字的上游被中止并切换
   check('中断报错附带原因与已运行时长', cutErr && /已运行 \d+s/.test(cutErr.message), String(cutErr && cutErr.message))
   check('出字后中断写入 freeroute.log', /tt-cut 模型 cut-free 出字后中断\(STREAM_CLOSED\)/.test(readLog()))
   for (const id of ['tt-slow', 'tt-fast', 'tt-solo', 'tt-cut']) await rpc('freeroute.remove-upstream', { id })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
+section('22b. 出字后：持续输出不被砍、只剩心跳才中止；首 token 慢的提供方层内沉底')
+{
+  const readLog = () => { try { return __fs.readFileSync(LOG_FILE, 'utf8') } catch { return '' } }
+  await isolatePool()
+  // 持续出字 2.4s（超过 0.8s 空闲上限的 3 倍）：内容一直在流就不该被砍
+  const portFlow = await listen('ciFlow', (req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    let n = 0
+    const iv = setInterval(function () {
+      n++
+      res.write(j({ choices: [{ delta: { content: 'x' } }] }))
+      if (n >= 12) {
+        clearInterval(iv)
+        res.write(j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 12 } }))
+        res.end('data: [DONE]\n\n')
+      }
+    }, 200)
+    res.on('close', function () { clearInterval(iv) })
+  })
+  // 出一个字之后只发心跳：字节在流，内容停了
+  const portHang = await listen('ciHang', (req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    res.write(j({ choices: [{ delta: { reasoning_content: 'hmm' } }] }))
+    const beat = setInterval(function () { res.write(': keepalive\n\n') }, 100)
+    res.on('close', function () { clearInterval(beat) })
+  })
+  await rpc('freeroute.apply-patch', { patch: { order: ['ci-flow', 'ci-hang'], upstreams: {
+    'ci-flow': { enabled: true, custom: { noAuth: true, baseUrl: b(portFlow), models: [{ id: 'flow-free', name: 'FL' }], defaultModel: 'flow-free' } },
+    'ci-hang': { enabled: true, custom: { noAuth: true, baseUrl: b(portHang), models: [{ id: 'hang-free', name: 'HG' }], defaultModel: 'hang-free' } }
+  } } })
+  const rflow = await collect(adapter.stream({ provider: 'freeroute', model: 'ci-flow/flow-free', messages: msg('ping') }))
+  check('持续出字超过空闲上限也不被砍（12 个字）', rflow.text === 'x'.repeat(12), JSON.stringify(rflow.text))
+  let hangErr = null
+  const th = Date.now()
+  try { await collect(adapter.stream({ provider: 'freeroute', model: 'ci-hang/hang-free', messages: msg('ping') })) } catch (e) { hangErr = e }
+  check('出字后只剩心跳被中止（STREAM_CLOSED）', hangErr && hangErr.code === 'STREAM_CLOSED', String(hangErr && hangErr.code))
+  check('报错说明是出字后无新内容', hangErr && /出字后连续 1s 无新内容/.test(hangErr.message), String(hangErr && hangErr.message))
+  check('没有等到整次上限（< 4s）', Date.now() - th < 4000, String(Date.now() - th))
+  check('日志记录出字后中断', /ci-hang 模型 hang-free 出字后中断\(STREAM_CLOSED\)/.test(readLog()))
+  await rpc('freeroute.remove-upstream', { id: 'ci-flow' })
+  await rpc('freeroute.remove-upstream', { id: 'ci-hang' })
+
+  // 首 token 慢（1.4s，超过慢阈值 1s 但没到超时 2s）却能成功的提供方：
+  // 第一次照常由它服务，第二次同款模型的快提供方排到它前面
+  await isolatePool()
+  const portSkA = await listen('skA', (req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    setTimeout(function () {
+      res.write(j({ choices: [{ delta: { content: 'SA' } }] }))
+      res.write(j({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } }))
+      res.end('data: [DONE]\n\n')
+    }, 1400)
+  })
+  const portSkB = await listen('skB', mkText('SB'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['sk-a', 'sk-b'], upstreams: {
+    'sk-a': { enabled: true, custom: { noAuth: true, baseUrl: b(portSkA), models: [{ id: 'sk-free', name: 'SK', contextWindow: 131072 }], defaultModel: 'sk-free' } },
+    'sk-b': { enabled: true, custom: { noAuth: true, baseUrl: b(portSkB), models: [{ id: 'sk-free', name: 'SK', contextWindow: 131072 }], defaultModel: 'sk-free' } }
+  } } })
+  const rs1 = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('首次按原优先级由 sk-a 服务（SA）', rs1.text === 'SA', JSON.stringify(rs1.text))
+  const rs2 = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('sk-a 首 token 慢 → 层内沉底，改由 sk-b 服务（SB）', rs2.text === 'SB', JSON.stringify(rs2.text))
+  await rpc('freeroute.remove-upstream', { id: 'sk-a' })
+  await rpc('freeroute.remove-upstream', { id: 'sk-b' })
   await rpc('freeroute.apply-patch', { patch: { order: [] } })
 }
 
