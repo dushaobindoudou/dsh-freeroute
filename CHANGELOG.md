@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.2]
+
+### Fixed
+
+- **模型标注常驻不消失**：`⚡ <模型>` 之前靠宿主的动作行显隐，但宿主只对
+  「非最后一条回复」启用 hover 显隐 —— 最后一条回复的整行是
+  `[data-actions-reveal=always]`（时间/复制本来就常驻），标注跟着常驻，看起来
+  像是「鼠标移开也不消失」。现在标注自己按 hover 语义收口：默认隐去，悬停
+  动作行（或键盘聚焦行内按钮）才露出；触摸设备（`@media (hover: none)`）
+  没有悬停，保持常显。
+
 ## [0.10.1]
 
 ### Fixed

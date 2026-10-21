@@ -1,4 +1,4 @@
-const VERSION = '0.10.1'
+const VERSION = '0.10.2'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
 const UA = 'deepseek-harness/0.1.0-rc.6 (+https://github.com/deepseek-ai/deepseek-harness)'
