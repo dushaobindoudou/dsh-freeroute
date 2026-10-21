@@ -22,6 +22,10 @@ globalThis.__nodeFs = { mkdirSync: __fs.mkdirSync, readFileSync: __fs.readFileSy
 globalThis.__nodeOs = { homedir: __os.homedir }
 const CFG = __os.tmpdir() + '/freeroute-test-' + process.pid + '.json'
 try { __fs.unlinkSync(CFG) } catch { /* 不存在即跳过 */ }
+// 启动 4s 后的首轮目录同步默认拉线上主源（真实网络、30s 超时）：网络慢时它会
+// 在第 9 段手动同步之后才落地，把 mock 目录整层覆盖（rb-model 消失）。预置一个
+// 立即连接失败的本地源——失败的同步不改远端层，测试也不再依赖外网。
+__fs.writeFileSync(CFG, JSON.stringify({ catalog: { remoteUrl: 'http://127.0.0.1:9/none.json' } }))
 process.env.FREEROUTE_CONFIG = CFG
 
 const pkg = JSON.parse(readFileSync(path.join(here, '..', '..', 'package.json'), 'utf8'))
@@ -259,7 +263,7 @@ await plugin.apply(fakeCtx)
 const adapter = adapters.get('freeroute')
 const state = async () => rpc('freeroute.state', {})
 
-// 清空上游池后再布置本段的 mock：auto 的锚点会按「质量档 → 交集家数」重排，
+// 清空上游池后再布置本段的 mock：auto 的锚点会按「交集家数 → 质量档」重排，
 // 前面各段遗留的 enabled 上游（尤其是被多家共有的 test-model 之类）会让后续
 // 断言里的锚点不确定。需要「谁先被调用」这类确定行为的段，先调用本函数。
 async function isolatePool() {
@@ -378,7 +382,8 @@ section('3c. 请求体内容透传（块数组与裸字符串两种形态）')
     let body = ''
     req.on('data', function (c) { body += c })
     req.on('end', function () {
-      seenBodies.push(body)
+      // 只记聊天请求：GET /models 探测的空 body 会混进来，让断言随探测时序飘
+      if (req.method === 'POST') seenBodies.push(body)
       mkOk()(req, res)
     })
   })
@@ -660,13 +665,14 @@ section('13b. 跨平台同名模型：内部平台表 + 自动故障转移')
 {
   // mock-x 提供坏网关上的 dsx-free；mock-y 提供大写/组织前缀变体 DSX-FREE。
   // 通用名 dsx 归一后两家同源，请求按优先级先打 mock-x，失败自动转移到 mock-y。
+  // 两家窗口相同：同款模型内先按窗口、再按用户优先级排提供方。
   const portX = await listen('failx', mkFail())
   const portY = await listen('oky', mkOk())
   const reg = await rpc('freeroute.apply-patch', {
     patch: {
       upstreams: {
         'mock-x': { enabled: true, custom: { baseUrl: 'http://127.0.0.1:' + portX + '/v1', noAuth: true, models: [{ id: 'dsx-free', name: 'DSX Free', contextWindow: 8192 }], defaultModel: 'dsx-free' } },
-        'mock-y': { enabled: true, custom: { baseUrl: 'http://127.0.0.1:' + portY + '/v1', noAuth: true, models: [{ id: 'vendor-x/DSX-FREE' }] } }
+        'mock-y': { enabled: true, custom: { baseUrl: 'http://127.0.0.1:' + portY + '/v1', noAuth: true, models: [{ id: 'vendor-x/DSX-FREE', contextWindow: 8192 }] } }
       },
       order: ['mock-x', 'mock-y']
     }
@@ -1190,6 +1196,89 @@ section('20c. auto 分层：质量档优先 / 交集家数优先')
   await rpc('freeroute.remove-upstream', { id: 'cov-solo' })
   await rpc('freeroute.remove-upstream', { id: 'cov-a' })
   await rpc('freeroute.remove-upstream', { id: 'cov-b' })
+  await rpc('freeroute.apply-patch', { patch: { order: [] } })
+}
+
+section('20d. auto 分层：提供方窗口 / 免费路由隔离 / 模型级失败不冷却整家 / 按会话容量')
+{
+  const modelGate = (bad, okText) => (req, res) => {
+    let body = ''
+    req.on('data', function (c) { body += c })
+    req.on('end', function () {
+      if (body.indexOf(bad) >= 0) return mkFail()(req, res)
+      return mkText(okText)(req, res)
+    })
+  }
+  // ① 同款模型按「这一家」的窗口排：池首那家只有 32K，不该排在 400K 那家前面
+  //    （聚合取最大会把 32K 的提供方当 400K 用，链首窗口还决定 auto 上报值）。
+  await isolatePool()
+  const portPwS = await listen('pwSmall', mkText('SMALLW'))
+  const portPwB = await listen('pwBig', mkText('BIGW'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['pw-small', 'pw-big'], upstreams: {
+    'pw-small': { enabled: true, custom: { noAuth: true, baseUrl: b(portPwS), models: [{ id: 'pw-free', name: 'PW', contextWindow: 32768 }], defaultModel: 'pw-free' } },
+    'pw-big': { enabled: true, custom: { noAuth: true, baseUrl: b(portPwB), models: [{ id: 'pw-free', name: 'PW', contextWindow: 400000 }], defaultModel: 'pw-free' } }
+  } } })
+  const rpw = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('同款模型内大窗提供方在前（BIGW）', rpw.text === 'BIGW', JSON.stringify(rpw.text))
+  const apw = await adapter.resolveModel('freeroute', 'auto')
+  check('auto 上报链首提供方自己的窗口（400000）', apw.context && apw.context.contextWindow === 400000, JSON.stringify(apw.context))
+  await rpc('freeroute.remove-upstream', { id: 'pw-small' })
+  await rpc('freeroute.remove-upstream', { id: 'pw-big' })
+
+  // ② 各家的免费自动路由（*/free）归一后同名，但不是同款，不能凑出交集。
+  await isolatePool()
+  const portMrS = await listen('mrSolo', mkText('SOLO'))
+  const portMrA = await listen('mrA', mkText('RA'))
+  const portMrB = await listen('mrB', mkText('RB'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['mr-solo', 'mr-a', 'mr-b'], upstreams: {
+    'mr-solo': { enabled: true, custom: { noAuth: true, baseUrl: b(portMrS), models: [{ id: 'solo-free', name: 'SO' }], defaultModel: 'solo-free' } },
+    'mr-a': { enabled: true, custom: { noAuth: true, baseUrl: b(portMrA), models: [{ id: 'vendor-a/free', name: 'RA' }], defaultModel: 'vendor-a/free' } },
+    'mr-b': { enabled: true, custom: { noAuth: true, baseUrl: b(portMrB), models: [{ id: 'vendor-b/free', name: 'RB' }], defaultModel: 'vendor-b/free' } }
+  } } })
+  const rmr = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('*/free 路由不凑交集，池首模型保持锚点（SOLO）', rmr.text === 'SOLO', JSON.stringify(rmr.text))
+  await rpc('freeroute.remove-upstream', { id: 'mr-solo' })
+  await rpc('freeroute.remove-upstream', { id: 'mr-a' })
+  await rpc('freeroute.remove-upstream', { id: 'mr-b' })
+
+  // ③ 同款跨厂商排列下同一家的模型不相邻（mc-a/sh → mc-b/sh → mc-a/own）：
+  //    mc-a 的 sh-free 挂了、由 mc-b 的同款接上，但 mc-a 还有 own-free 可用，
+  //    不应把 mc-a 整家冷却（否则下一次请求 mc-a 被整体踢出池）。
+  await isolatePool()
+  const portMcA = await listen('mcA', modelGate('sh-free', 'OWN'))
+  const portMcB = await listen('mcB', mkText('SHB'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['mc-a', 'mc-b'], upstreams: {
+    'mc-a': { enabled: true, custom: { noAuth: true, baseUrl: b(portMcA), models: [{ id: 'sh-free', name: 'SH', contextWindow: 131072 }, { id: 'own-free', name: 'OW', contextWindow: 131072 }], defaultModel: 'sh-free' } },
+    'mc-b': { enabled: true, custom: { noAuth: true, baseUrl: b(portMcB), models: [{ id: 'sh-free', name: 'SH', contextWindow: 131072 }], defaultModel: 'sh-free' } }
+  } } })
+  const rmc = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('同款模型由另一家接上（SHB）', rmc.text === 'SHB', JSON.stringify(rmc.text))
+  const smc = await state()
+  const mca = smc.upstreams.find((u) => u.id === 'mc-a')
+  check('模型级失败不冷却整家（mc-a 记失败但未进冷却）', mca.stats.failed >= 1 && mca.health.state !== 'cooling' && !mca.health.cooldownMs, JSON.stringify(mca.health))
+  await rpc('freeroute.remove-upstream', { id: 'mc-a' })
+  await rpc('freeroute.remove-upstream', { id: 'mc-b' })
+
+  // ④ 容量按本次会话判断：长会话装不进主流款（32K）时换大窗款；之后的短会话
+  //    回到主流款，不被上一次的 262K 服务锁死。
+  await isolatePool()
+  const portNfA = await listen('nfA', mkText('MAIN'))
+  const portNfB = await listen('nfB', mkText('MAIN'))
+  const portNfBig = await listen('nfBig', mkText('BIGCTX'))
+  await rpc('freeroute.apply-patch', { patch: { order: ['nf-a', 'nf-b', 'nf-big'], upstreams: {
+    'nf-a': { enabled: true, custom: { noAuth: true, baseUrl: b(portNfA), models: [{ id: 'main-free', name: 'MN', contextWindow: 32768 }], defaultModel: 'main-free' } },
+    'nf-b': { enabled: true, custom: { noAuth: true, baseUrl: b(portNfB), models: [{ id: 'main-free', name: 'MN', contextWindow: 32768 }], defaultModel: 'main-free' } },
+    'nf-big': { enabled: true, custom: { noAuth: true, baseUrl: b(portNfBig), models: [{ id: 'big-free', name: 'BG', contextWindow: 262144 }], defaultModel: 'big-free' } }
+  } } })
+  const rlong = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('x'.repeat(150000)) }))
+  check('长会话装不下主流款时换大窗款（BIGCTX）', rlong.text === 'BIGCTX', JSON.stringify(rlong.text))
+  const along = await adapter.resolveModel('freeroute', 'auto')
+  check('长会话后 auto 上报大窗（262144）', along.context && along.context.contextWindow === 262144, JSON.stringify(along.context))
+  const rshort = await collect(adapter.stream({ provider: 'freeroute', model: 'auto', messages: msg('ping') }))
+  check('短会话回到交集 2 家的主流款（MAIN），不被粘性窗口锁死', rshort.text === 'MAIN', JSON.stringify(rshort.text))
+  await rpc('freeroute.remove-upstream', { id: 'nf-a' })
+  await rpc('freeroute.remove-upstream', { id: 'nf-b' })
+  await rpc('freeroute.remove-upstream', { id: 'nf-big' })
   await rpc('freeroute.apply-patch', { patch: { order: [] } })
 }
 

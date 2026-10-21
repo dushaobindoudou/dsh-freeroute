@@ -40,7 +40,7 @@ function sanitizeConfig(raw) {
           for (const m of c.models) {
             if (m && typeof m.id === 'string' && m.id.length > 0) {
               const mm = { id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 }
-              // 质量档（1..5）：auto 分层的第一排序键。插件自身判断不了模型好坏，
+              // 质量档（1..5）：auto 锚点在交集家数打平时的裁决键。插件自身判断不了模型好坏，
               // 只能由目录/用户显式声明；sanitize 必须放行，否则用户 patch 里写
               // 的 quality 会被静默丢掉（表现为「配了没生效」）。
               const q = Math.round(Number(m.quality))

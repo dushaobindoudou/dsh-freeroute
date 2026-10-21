@@ -43,11 +43,13 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
    credentials service, never in plaintext config.
 3. **Health & failover** — failures cool down by class (auth/config 10 min,
    rate limit 60 s, others exponential backoff capped at 10 min). `auto`
-   ranks candidates in five layers: anchor model (highest declared `quality`,
-   then the model shared by the most upstreams) → the same model on other
-   vendors → other models of the same quality band with no window downgrade →
-   models that fit the current context → everything else (sunk, never
-   dropped). A **pinned single model** degrades to the `auto` chain when all
+   ranks candidates in four layers: the anchor model (the one shared by the
+   most upstreams; declared `quality` only breaks ties) on every vendor that
+   fits the current context, largest window first → other models whose window
+   is no smaller than the chain head → other models that fit the current
+   context → everything else (sunk, never dropped). Windows are judged per
+   vendor, not per model, since the same model ships with very different
+   windows on different gateways. A **pinned single model** degrades to the `auto` chain when all
    of its providers fail (or sit in cooldown) instead of aborting the turn —
    picking one model is a preference, not exclusivity. Keys rotate
    individually on AUTH / rate-limit, and a per-key failure is surfaced in the

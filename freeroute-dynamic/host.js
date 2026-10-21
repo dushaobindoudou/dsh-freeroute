@@ -1,4 +1,4 @@
-const VERSION = '0.9.0'
+const VERSION = '0.9.1'
 const ROUTE = 'freeroute'
 const NS = 'free-proxy'
 const UA = 'deepseek-harness/0.1.0-rc.6 (+https://github.com/deepseek-ai/deepseek-harness)'
@@ -10,12 +10,13 @@ const TRAILER = '\n__FREEROUTE_HTTP_%{http_code}__'
 // 探测（目录即真相）+ 模型级失败转移会自动绕开瞬时不可用，这里只影响
 // 首探前的种子与首选拍序。
 //
-// quality（可选 1..5）是 auto 路由的第一排序键：插件只能观测成功/失败/延迟，
-// 观测不到「答案好不好」，所以模型强弱必须由目录显式声明。口径：
+// quality（可选 1..5）是 auto 锚点的第二排序键（第一键是交集家数，只在交集
+// 打平时裁决）：插件只能观测成功/失败/延迟，观测不到「答案好不好」，模型强弱
+// 只能由目录显式声明，属于参考值。口径：
 //   5 旗舰（前沿推理/编码主力）  4 强（大参数非旗舰）
 //   3 中（正式版通用款）        2 轻（lite / mini / flash-lite / stealth 预览）
 //   1 小或实验（无稳定性承诺）
-// 不标注 = 未声明（0）→ 排序退回「交集家数 → 窗口 → 原有优先级」，行为不变。
+// 不标注 = 未声明（0）→ 同交集时退回用户上游优先级。
 const BUILTIN_UPSTREAMS = [
   {
     id: 'opencode', name: 'OpenCode Zen',
@@ -171,7 +172,7 @@ function sanitizeConfig(raw) {
           for (const m of c.models) {
             if (m && typeof m.id === 'string' && m.id.length > 0) {
               const mm = { id: m.id, name: (typeof m.name === 'string' && m.name.length > 0) ? m.name : m.id, contextWindow: Number(m.contextWindow) > 0 ? Number(m.contextWindow) : 32768 }
-              // 质量档（1..5）：auto 分层的第一排序键。插件自身判断不了模型好坏，
+              // 质量档（1..5）：auto 锚点在交集家数打平时的裁决键。插件自身判断不了模型好坏，
               // 只能由目录/用户显式声明；sanitize 必须放行，否则用户 patch 里写
               // 的 quality 会被静默丢掉（表现为「配了没生效」）。
               const q = Math.round(Number(m.quality))
@@ -1245,13 +1246,20 @@ function log (message) {
       }
     }
 
+    // hooks.suppressCooldown 可以是布尔值，也可以是按错误判断的函数（chaseChain
+    // 用后者：模型级失败不冷却，上游级失败照常冷却）。
+    function suppressFor(hooks, err) {
+      const s = hooks && hooks.suppressCooldown
+      return typeof s === 'function' ? s(err) === true : s === true
+    }
+
     // attempt：上游+模型级入口。内部按 Key 环轮换（鉴权/限流换下一把 Key，
     // 全部失败才上报上游级失败）；attemptWithKey 才是真正的单次 HTTP 尝试。
     async function* attempt(upstream, model, options, hooks) {
       const ring = await keyRing(upstream)
       if (ring.length === 0) {
         const e0 = mkFail('上游 ' + upstream.id + ' 缺少 API Key：请在 设置 → freeroute 中保存密钥，或导出环境变量 ' + upstream.keyRef, 'MISSING_CREDENTIAL')
-        recordFailure(upstream.id, e0, hooks && hooks.suppressCooldown === true)
+        recordFailure(upstream.id, e0, suppressFor(hooks, e0))
         throw e0
       }
       const ordered = orderKeys(upstream, ring)
@@ -1278,7 +1286,7 @@ function log (message) {
             log('[freeroute] 上游 ' + upstream.id + ' 的第 ' + kidx + ' 把 Key 失败(' + code + ')，轮换下一把')
             continue
           }
-          recordFailure(upstream.id, e, hooks && hooks.suppressCooldown === true)
+          recordFailure(upstream.id, e, suppressFor(hooks, e))
           throw e
         }
       }
@@ -1458,18 +1466,21 @@ function log (message) {
       return 0
     }
 
-    // ---- auto 候选链：质量 / 交集 / 容量 三层排序 ----
-    // 判断依据按优先级从高到低：
-    //   ① quality —— 目录声明的质量档（1..5）。插件只能观测成功/失败/延迟，
-    //      观测不到「答得好不好」，所以模型强弱必须由目录显式声明；
-    //   ② coverage —— 同一款模型被多少家上游同时提供（交集家数）。交集越大，
-    //      「同款模型跨厂商」这条零损耗的故障转移链越深：免费池天天限流，
-    //      一个 5 家都在的模型比一个只有 1 家的小众预览款可靠得多；
-    //   ③ window —— 上下文容量。只用来兜住「别把当前会话塞进放不下的模型」，
-    //      不再拿它当「最好」的判据（窗口大 ≠ 能力强，1M 窗口的 lite 款
-    //      在工具调用密集的场景里比 128K 的正式版差得多）。
-    // 三者都分不出高下时保持原首选（池首上游的默认模型）——只有严格更优才
-    // 替换，所以未声明 quality 的既有配置行为不变。
+    // ---- auto 候选链：主流度 → 同款 → 同窗 → 其他 ----
+    // 目标顺序（从高到低）：
+    //   ① 主流模型优先：被最多家上游同时提供的模型（交集家数 coverage）当锚点。
+    //      插件观测不到「答得好不好」，被越多家网关上架的款越接近主流强模型，
+    //      同款跨厂商的故障转移链也越深；同交集再看目录声明的 quality（1..5），
+    //      最后按用户上游优先级。quality 只做平局裁决：用户 custom.models 会
+    //      整表覆盖内置表，档位常常只在部分上游存在，拿它当第一键会让「碰巧
+    //      带了档位的那家」压过真正的主流款；
+    //   ② 同款模型跨厂商切换（能力不变，最无损）；
+    //   ③ 窗口不低于链首的其他模型（换模型但不掉上下文）；
+    //   ④ 装得下本次会话的其他模型；
+    //   ⑤ 其余兜底（装不下本次会话的，沉底）。
+    // 窗口一律按「这一家的这一款」判断，不用跨厂商聚合值：同款模型在不同网关
+    // 的标称窗口差异很大（实测 glm-5.3-flash 32K～400K），聚合取最大会把 32K
+    // 的提供方当成 400K 排到链首。
 
     // 本次请求的上下文占用粗估（token）。只用于分层排序，不做硬校验：
     // CJK 约 1.6 字符/token，其余约 3.5 字符/token，末尾加响应预留与 10% 余量。
@@ -1522,25 +1533,32 @@ function log (message) {
       return out
     }
 
-    // 池内按 canonical 模型名聚合：质量取各家声明最高值、窗口取最大值
-    // （同一款模型在不同网关标称窗口可能不同），providers 保持池的优先级序。
+    // 免费自动路由（openrouter/free、orcarouter/free 等）归一后都叫 free，但
+    // 背后是各家各自挑的模型，不是「同款」：按上游隔离，不参与交集计数。
+    const META_MODEL_IDS = new Set(['free', 'router'])
+    function aggKey(u, modelId) {
+      const cid = canonicalModelId(modelId)
+      return META_MODEL_IDS.has(cid) ? u.id + '/' + cid : cid
+    }
+
+    // 池内按 canonical 模型名聚合：coverage = 提供该款的上游家数，quality 取
+    // 各家声明最高值；providers 保留各家自己的窗口与池内优先级（rank）。
     function modelAggregates(pool) {
       const map = new Map()
-      for (const u of pool) {
+      for (let ui = 0; ui < pool.length; ui++) {
+        const u = pool[ui]
         for (const m of eligibleModels(u)) {
-          const cid = canonicalModelId(m.id)
+          const cid = aggKey(u, m.id)
           if (!cid || cid === 'auto') continue
           let a = map.get(cid)
           if (!a) {
-            a = { cid: cid, quality: 0, window: 0, coverage: 0, providers: [], order: map.size }
+            a = { cid: cid, quality: 0, coverage: 0, providers: [], order: map.size }
             map.set(cid, a)
           }
-          const w = Number(m.contextWindow) || 0
-          if (w > a.window) a.window = w
           const q = Number(m.quality) || 0
           if (q > a.quality) a.quality = q
           if (!a.providers.some(function (p) { return p.upstream.id === u.id })) {
-            a.providers.push({ upstream: u, model: m.id, window: w })
+            a.providers.push({ upstream: u, model: m.id, window: Number(m.contextWindow) || 0, rank: ui })
           }
         }
       }
@@ -1548,92 +1566,100 @@ function log (message) {
       return map
     }
 
-    let lastAnchorNote = ''
-    function noteAnchor(a, floor, n3, n4, n5) {
-      const sig = a.cid + '|' + a.quality + '|' + a.coverage + '|' + a.window + '|' + floor + '|' + n3 + ',' + n4 + ',' + n5
-      if (sig === lastAnchorNote) return
-      lastAnchorNote = sig
-      log('[freeroute] auto 锚点 → ' + a.cid + '（质量 ' + a.quality + ' · 交集 ' + a.coverage + ' 家 · 窗口 ' + a.window + '）'
-        + '；备用层 同档 ' + n3 + ' / 够容量 ' + n4 + ' / 兜底 ' + n5 + '（容量下限 ' + floor + '）')
+    // 模型间排序：交集家数 → 质量档 → 首次出现序（即用户上游优先级）。
+    function byMainstream(x, y) {
+      if (y.coverage !== x.coverage) return y.coverage - x.coverage
+      if (y.quality !== x.quality) return y.quality - x.quality
+      return x.order - y.order
     }
 
-    // auto 的全部候选，按层输出：
-    //   ① 锚点模型的池内首选提供方
-    //   ② 同款模型的其他厂商（能力与窗口都不变，最无损的一次转移）
-    //   ③ 同质量档且窗口不低于锚点的其他模型（换模型但不掉容量）
-    //   ④ 窗口不低于容量下限的其他模型
-    //   ⑤ 其余（只在前四层全挂时兜底，沉底不删除）
-    // MAX_CHAIN 给链长封顶：免费池里「每个 cid 的全家提供方」可能是几十条，
-    // 逐条试错会把首字延迟抬到不可接受。
-    //
-    // floor = max(本次请求粗估占用, 粘性实际服务窗口)：前者保证不会把已经长大
-    // 的会话塞进装不下的模型，后者保证跨请求不来回抖动（根因 D）。装不下的
-    // 锚点会被「装得下的最优候选」顶替，但候选本身一个都不删——全部装不下时
-    // 仍按原顺序试，让错误信息来自真实上游而不是路由器的猜测。
+    // 同款内的提供方排序：窗口大的在前（同款能力相同，唯一差别就是装得下多少，
+    // 链首窗口还决定 auto 上报给 dsh 的窗口——32K 的提供方排第一会让 dsh 按
+    // 32K 压缩会话），窗口未知的排在已知之后，同窗再按用户上游优先级。
+    function byProviderWindow(x, y) {
+      if (!x.window !== !y.window) return x.window ? -1 : 1
+      if (y.window !== x.window) return y.window - x.window
+      return x.rank - y.rank
+    }
+
+    let lastAnchorNote = ''
+    function noteAnchor(a, head, counts) {
+      const sig = a.cid + '|' + a.coverage + '|' + a.quality + '|' + (head ? head.upstream.id + '/' + head.window : '') + '|' + counts.join(',')
+      if (sig === lastAnchorNote) return
+      lastAnchorNote = sig
+      log('[freeroute] auto 锚点 → ' + a.cid + '（交集 ' + a.coverage + ' 家 · 质量 ' + a.quality
+        + (head ? ' · 链首 ' + head.upstream.id + ' 窗口 ' + head.window : '') + '）'
+        + '；候选 同款 ' + counts[0] + ' / 同窗 ' + counts[1] + ' / 够容量 ' + counts[2] + ' / 兜底 ' + counts[3])
+    }
+
+    // auto 的全部候选，按层输出（层内同款模型的提供方保持相邻）：
+    //   ① 锚点模型、装得下本次会话的提供方（窗口大的在前）
+    //   ② 其他模型中窗口不低于链首的提供方
+    //   ③ 其他模型中装得下本次会话的提供方
+    //   ④ 装不下本次会话的（含锚点自己的小窗提供方）
+    // floor 是本次请求的粗估占用，只用来做「装不装得下」的硬分层。进程级粘性
+    // 窗口（lastServedWindow）不进 floor——那会让一次 1M 服务把之后所有会话
+    // 都锁到 1M 款上、压过主流度；它只在交集与质量都打平时裁决锚点：链首窗口
+    // 就是 auto 上报给 dsh 的窗口，同分时别从大窗跌回小窗，否则 dsh 按小窗
+    // 压缩会话、会话永远长不到能触发 floor 的长度（压缩风暴根因 D）。
+    // 链本身不截断；MAX_CHAIN 在 chaseChain 里只数「真正发起的尝试」：逐条
+    // 试错会把首字延迟抬到不可接受，但因上游级失败被整家跳过的候选不占名额——
+    // 否则一家模型多的上游（OpenRouter 十几款）鉴权失败就会把名额全部吃光。
     const MAX_CHAIN = 12
     function autoChain(pool, floor) {
       const agg = modelAggregates(pool)
       if (agg.size === 0) return []
-      const seed = agg.get(canonicalModelId(defaultModelFor(pool[0]))) || null
-      let anchor = seed
-      for (const a of agg.values()) {
-        if (!anchor) { anchor = a; continue }
-        if (a.quality > anchor.quality) { anchor = a; continue }
-        if (a.quality === anchor.quality && a.coverage > anchor.coverage) anchor = a
-      }
-      // 容量可行性优先于质量与交集：锚点装不下本次会话时，改挑装得下里最好的。
-      // 窗口未知（0）不当作「装不下」——网关没报 context_length 时，旧逻辑也
-      // 把它当同窗放行，这里保持一致，否则一个没报窗口的目录会被整条踢下去。
-      if (floor > 0 && anchor && anchor.window > 0 && anchor.window < floor) {
-        let best = null
-        for (const a of agg.values()) {
-          if (a.window < floor) continue
-          if (!best
-            || a.quality > best.quality
-            || (a.quality === best.quality && a.coverage > best.coverage)
-            || (a.quality === best.quality && a.coverage === best.coverage && a.window > best.window)) best = a
+      const fits = function (p) { return !(floor > 0) || p.window === 0 || p.window >= floor }
+      const all = Array.from(agg.values())
+      // 锚点只在「至少一家装得下」的模型里挑；全都装不下才退回全量。
+      let pickFrom = all.filter(function (a) { return a.providers.some(fits) })
+      if (pickFrom.length === 0) pickFrom = all
+      // 锚点：交集 → 质量 → 能否保住粘性窗口 → 原首选（池首上游的默认模型，
+      // 含学到的可用模型 goodModel）→ 用户优先级。
+      const reach = function (a) {
+        let w = 0
+        for (const p of a.providers) {
+          if (!fits(p)) continue
+          if (!p.window) return Infinity
+          if (p.window > w) w = p.window
         }
-        if (best) anchor = best
+        return w
+      }
+      const keeps = function (a) { return !(lastServedWindow > 0) || reach(a) >= lastServedWindow ? 1 : 0 }
+      const seed = agg.get(aggKey(pool[0], defaultModelFor(pool[0])))
+      const anchor = pickFrom.slice().sort(function (x, y) {
+        if (y.coverage !== x.coverage) return y.coverage - x.coverage
+        if (y.quality !== x.quality) return y.quality - x.quality
+        const kx = keeps(x)
+        const ky = keeps(y)
+        if (ky !== kx) return ky - kx
+        if ((x === seed) !== (y === seed)) return x === seed ? -1 : 1
+        return x.order - y.order
+      })[0]
+
+      const tiers = [[], [], [], []]
+      const anchorProviders = anchor.providers.slice().sort(byProviderWindow)
+      for (const p of anchorProviders) (fits(p) ? tiers[0] : tiers[3]).push(p)
+      const headWindow = tiers[0].length > 0 ? tiers[0][0].window : 0
+      const others = all.filter(function (a) { return a !== anchor }).sort(byMainstream)
+      for (const a of others) {
+        for (const p of a.providers.slice().sort(byProviderWindow)) {
+          if (!fits(p)) tiers[3].push(p)
+          else if (!headWindow || !p.window || p.window >= headWindow) tiers[1].push(p)
+          else tiers[2].push(p)
+        }
       }
       const chain = []
       const used = new Set()
-      const emit = function (a) {
-        for (const p of a.providers) {
-          if (chain.length >= MAX_CHAIN) return
+      for (const tier of tiers) {
+        for (const p of tier) {
           const k = p.upstream.id + '|' + p.model
           if (used.has(k)) continue
           used.add(k)
-          chain.push({ upstream: p.upstream, model: p.model })
+          chain.push({ upstream: p.upstream, model: p.model, window: p.window })
         }
       }
-      emit(anchor)
-      const tier3 = []
-      const tier4 = []
-      const tier5 = []
-      for (const a of agg.values()) {
-        if (a === anchor) continue
-        if (a.quality === anchor.quality && (a.window === 0 || a.window >= anchor.window)) tier3.push(a)
-        else if (a.window === 0 || a.window >= floor) tier4.push(a)
-        else tier5.push(a)
-      }
-      // 层内排序：质量档 → 用户优先级 → 交集家数 → 窗口。
-      // 「用户优先级」排在交集之前，是为了让同一家上游的多个模型保持相邻：
-      // 某个模型下线时能立刻换到同家的备选，而不是把整家上游错误地冷却掉
-      // （chaseChain 的 suppressCooldown 依赖「下一个候选还在同一家」）。
-      const byScore = function (x, y) {
-        if (y.quality !== x.quality) return y.quality - x.quality
-        if (x.order !== y.order) return x.order - y.order
-        if (y.coverage !== x.coverage) return y.coverage - x.coverage
-        if (y.window !== x.window) return y.window - x.window
-        return 0
-      }
-      tier3.sort(byScore)
-      tier4.sort(byScore)
-      tier5.sort(byScore)
-      for (const a of tier3) emit(a)
-      for (const a of tier4) emit(a)
-      for (const a of tier5) emit(a)
-      noteAnchor(anchor, floor, tier3.length, tier4.length, tier5.length)
+      noteAnchor(anchor, tiers[0][0] || null, tiers.map(function (t) { return t.length }))
       return chain
     }
 
@@ -1693,10 +1719,9 @@ function log (message) {
       if (keyed.length === 0) return []
       const healthy = keyed.filter(function (u) { return !cooling(u.id) })
       const pool = healthy.length > 0 ? healthy : keyed.slice().sort(function (a, b) { return ((health.get(a.id) || {}).cooldownUntil || 0) - ((health.get(b.id) || {}).cooldownUntil || 0) })
-      // 容量下限 floor = 本次请求粗估占用 与 粘性实际服务窗口 的较大值：
-      // 前者防止把已经长大的会话塞进装不下的模型，后者防止跨请求抖动。
-      const floor = Math.max(Number(need) || 0, lastServedWindow)
-      if (model === 'auto') return autoChain(pool, floor)
+      // auto 的容量下限只用本次请求的粗估占用（见 autoChain）；点名模型仍走
+      // 原有的粘性窗口分层。
+      if (model === 'auto') return autoChain(pool, Number(need) || 0)
       return tierByContextWindow(candidatesSync(pool, model))
     }
 
@@ -1707,12 +1732,13 @@ function log (message) {
     // 回退到已就绪上游的最大窗口；仍未知才 32768。
     async function autoContextWindow() {
       try {
-        const cands = await candidatesFor('auto')
+        // resolveModel 拿不到本次会话的长度，用上一次 auto 派发的粗估占用代替
+        // ——这是进程级近似，不区分会话：新会话首轮可能沿用上个会话的占用而多报
+        // 窗口，派发时按真实 need 重算 floor，不会把会话塞进装不下的模型。
+        const cands = await candidatesFor('auto', lastAutoNeed)
         if (cands.length > 0) {
-          const head = cands[0]
-          for (const m of mergedModels(head.upstream)) {
-            if (m.id === head.model && m.contextWindow) return m.contextWindow
-          }
+          const headWin = cands[0].window || contextWindowOf(cands[0])
+          if (headWin) return headWin
         }
         let max = 0
         for (const u of orderedUpstreams()) {
@@ -1728,16 +1754,29 @@ function log (message) {
       }
     }
 
+    // 上游级失败：换这家的其他模型也没用（Key 全被限流/鉴权失败/网络不通），
+    // 立即冷却并跳过链里这家剩下的候选。
+    const UPSTREAM_LEVEL_CODES = new Set(['RATE_LIMIT', 'AUTH', 'MISSING_CREDENTIAL', 'TRANSPORT'])
+
     // 沿候选链逐个尝试：出字前失败换下一家，出字后失败直接上抛。
-    async function* chaseChain(cands, options) {
+    // auto 链按「同款跨厂商」排列，同一家的模型往往不相邻；冷却判断看的是
+    // 「链里后面还有没有这家」而不只是下一个，否则一个模型下线就会把整家冷却。
+    async function* chaseChain(cands, options, maxAttempts) {
       let lastErr = null
+      const dead = new Set()
+      let attempts = 0
       for (let i = 0; i < cands.length; i++) {
         const cand = cands[i]
+        if (dead.has(cand.upstream.id)) continue
+        if (maxAttempts > 0 && attempts >= maxAttempts) break
+        attempts++
         const sameUpNext = !!(cands[i + 1] && cands[i + 1].upstream.id === cand.upstream.id)
+        const sameUpLater = cands.slice(i + 1).some(function (c) { return c.upstream.id === cand.upstream.id })
+        const suppress = function (e) { return sameUpLater && !UPSTREAM_LEVEL_CODES.has(String((e && e.code) || '')) }
         let produced = false
         let emptyFinish = null
         try {
-          for await (const ck of attempt(cand.upstream, cand.model, options, { suppressCooldown: sameUpNext })) {
+          for await (const ck of attempt(cand.upstream, cand.model, options, { suppressCooldown: suppress })) {
             if (DELTA_TYPES.indexOf(ck.type) >= 0) produced = true
             if (ck.type === 'finish' && (!ck.reason || ck.reason.kind === 'error') && !produced) {
               // 上游异常终止（如空响应）且尚未产出任何内容：视为该次尝试失败，
@@ -1749,7 +1788,7 @@ function log (message) {
             yield ck
           }
           if (emptyFinish) {
-            recordFailure(cand.upstream.id, emptyFinish, sameUpNext)
+            recordFailure(cand.upstream.id, emptyFinish, sameUpLater)
             lastErr = emptyFinish
             const nxt0 = cands[i + 1]
             if (nxt0) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 空响应(' + String(emptyFinish.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt0.model : nxt0.upstream.id))
@@ -1760,6 +1799,7 @@ function log (message) {
           lastErr = e
           if (options.signal && options.signal.aborted) throw e
           if (produced) throw e
+          if (UPSTREAM_LEVEL_CODES.has(String((e && e.code) || ''))) dead.add(cand.upstream.id)
           const nxt = cands[i + 1]
           if (nxt) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 失败(' + String(e && e.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt.model : nxt.upstream.id))
           if (String((e && e.code) || '') === 'SERVER') scheduleReprobe(cand.upstream.id)
@@ -1768,9 +1808,13 @@ function log (message) {
       throw lastErr || mkFail('全部候选上游均失败', 'NO_UPSTREAM')
     }
 
+    // 上一次 auto 派发的上下文占用粗估，供 autoContextWindow 对齐链首。
+    let lastAutoNeed = 0
+
     async function* failoverStream(options) {
       const isAuto = options.model === 'auto'
       const need = estimateContextTokens(options)
+      if (isAuto) lastAutoNeed = need
       const cands = await candidatesFor(options.model, need)
       if (cands.length === 0 && isAuto) {
         throw mkFail('没有可用的免费上游：请先在 设置 → freeroute 中启用并配置至少一个 API Key', 'NO_UPSTREAM')
@@ -1779,7 +1823,7 @@ function log (message) {
       if (cands.length > 0) {
         let yielded = false
         try {
-          for await (const ck of chaseChain(cands, options)) { yielded = true; yield ck }
+          for await (const ck of chaseChain(cands, options, isAuto ? MAX_CHAIN : 0)) { yielded = true; yield ck }
           return
         } catch (e) {
           if (options.signal && options.signal.aborted) throw e
@@ -1811,7 +1855,7 @@ function log (message) {
           : '全部候选失败'
         log('[freeroute] 模型 ' + options.model + '：' + reason + '，降级 auto 兜底（' + fb.length + ' 个候选）')
       }
-      for await (const ck of chaseChain(fb, options)) yield ck
+      for await (const ck of chaseChain(fb, options, MAX_CHAIN)) yield ck
     }
 
     const adapter = {
@@ -1842,7 +1886,7 @@ function log (message) {
         const readySet = await readyUpstreamIdSet()
         // 模态声明：auto 不声明（未知 = 允许附图，路由失败再自动切换）；
         // 单个免费模型仅在来源明确声明支持图片时带上 ['text','image']。
-        const out = [{ provider: ROUTE, id: 'auto', name: '⚡ Auto（自动切换）', description: '按优先级在已启用的免费上游间自动选择与切换' }]
+        const out = [{ provider: ROUTE, id: 'auto', name: '⚡ Auto（自动切换）', description: '优先多家共有的主流模型，失败先换同款的其他上游，再换窗口相当的其他模型' }]
         const freeList = []
         for (const entry of buildAliasIndex().values()) {
           if (entry.free !== true) continue

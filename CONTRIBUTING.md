@@ -41,7 +41,7 @@ and open it - the page imports the real ranking from `lib/index.js`.
 ```bash
 npm run lint      # ESLint over lib/ and smoke-host.mjs
 npm run lint:fix  # auto-fix what ESLint can
-npm test          # hermetic smoke suite (no dsh install required)
+npm test          # smoke + integration + client suites (no dsh install required)
 ```
 
 The smoke suite fakes every host seam the plugin touches (commands,
