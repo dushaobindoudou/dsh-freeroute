@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/dushaobindoudou/dsh-freeroute/main/freeroute-dynamic/catalog/schema.md",
   "name": "FreeRoute 免费模型目录",
   "version": 1,
-  "updatedAt": "2026-10-20",
+  "updatedAt": "2026-10-22",
   "description": "FreeRoute dsh 插件的远程上游目录（仓库内备份副本，与主源 config.freetokenbox.com/freeroute.json 同源）。托管到 Cloudflare Pages/R2/Workers 后，在插件设置里填入该 JSON 的 URL 即可免发版更新免费上游列表。同时兼容 models.dev 的 api.json 格式。默认只收录实测可用的免费上游；用户在面板里删除的上游不会被同步复活。模型可带 inputModalities: [\"text\",\"image\"]（或 vision: true）声明视觉输入；省略表示未知，图片原样透传给上游裁决。",
   "upstreams": [
     {
@@ -83,32 +83,12 @@
     {
       "id": "sensenova",
       "name": "SenseNova 商汤日日新",
-      "api": "https://token.sensenova.cn/v1",
+      "api": "https://token.sensenova.ai/v1",
       "keyRef": "FREEROUTE_SENSENOVA_API_KEY",
-      "signupUrl": "https://console.sensenova.cn",
-      "note": "3 模型实测通过(2026-09-09 带鉴权 /models 确认在列);正确端点 token.sensenova.cn/v1(api.sensenova.cn 会 403)。 （2026-09-22 复查：sensenova-6.7-flash-lite 已从 /models 下线移除；pricing=0 且实测 200 出字的 glm-5.2 / kimi-k3 / deepseek-v4-pro / deepseek-flash 新收入免费档；u1-fast / u1.5-lite 虽 pricing=0 但当前账号 plan 未开放（404），deepseek-v4.1-flash 被 plan 门 403 拒绝，均暂不收录） （2026-10-10 复查：deepseek-v4-pro 已从 /models 下架移除；sensenova-u1.5-lite 实测 404、deepseek-v4.1-flash 实测 403 不收录；sensenova-6.8-flash-lite 恢复 200 并带视觉声明） （2026-10-15 复查：deepseek-v4-flash / glm-5.2 / kimi-k3 / sensenova-6.8-flash-lite 实测 200；deepseek-flash 实测 429 tpm/rpm 限流（非下架）；/models 7 款无增删） （2026-10-20 复查：/models 7 款无增删；sensenova-u1.5-lite 实测 404 model is not found、deepseek-v4.1-flash 实测 403 model is not available in the current token plan，两款虽在 /models 在列但 plan 未开放，维持不收录；deepseek-v4-flash 实测 200）",
-      "defaultModel": "deepseek-v4-flash",
+      "signupUrl": "https://platform.sensenova.ai",
+      "note": "2026-10-22 平台换域：端点 token.sensenova.ai/v1、注册 platform.sensenova.ai（旧 console.sensenova.cn / token.sensenova.cn 属旧域，旧 Key 不在新域生效）。新域带 Key GET /models 4 款：sensenova-6.8-flash-lite、sensenova-6.7-flash-lite、sensenova-u1-fast、sensenova-u1.5-lite；实测仅 sensenova-6.8-flash-lite 200 出字（带 vision 声明），其余三款 404 model is not found（plan 未开放，不收录）；旧域 deepseek-v4-flash / deepseek-flash / glm-5.2 / kimi-k3 / deepseek-v4.1-flash 在新域全部 404，已下线移除；默认模型改为 sensenova-6.8-flash-lite。",
+      "defaultModel": "sensenova-6.8-flash-lite",
       "models": [
-        {
-          "id": "deepseek-flash",
-          "name": "DeepSeek Flash",
-          "contextWindow": 1048576
-        },
-        {
-          "id": "deepseek-v4-flash",
-          "name": "DeepSeek V4 Flash",
-          "contextWindow": 1048576
-        },
-        {
-          "id": "glm-5.2",
-          "name": "GLM 5.2",
-          "contextWindow": 1048576
-        },
-        {
-          "id": "kimi-k3",
-          "name": "Kimi K3",
-          "contextWindow": 1048576
-        },
         {
           "id": "sensenova-6.8-flash-lite",
           "name": "SenseNova 6.8 Flash Lite",
@@ -120,10 +100,6 @@
         }
       ],
       "freeModels": [
-        "deepseek-flash",
-        "deepseek-v4-flash",
-        "glm-5.2",
-        "kimi-k3",
         "sensenova-6.8-flash-lite"
       ]
     },
@@ -210,7 +186,7 @@
       "api": "https://openrouter.ai/api/v1",
       "keyRef": "FREEROUTE_OPENROUTER_API_KEY",
       "signupUrl": "https://openrouter.ai/settings/keys",
-      "note": "18 款现役免费档（2026-08-28 live 同步，含 openrouter/free 自动路由）；content-safety 分类器不收录。未充值约 50 次/天。 （2026-09-09 复查：新增 ling-3.0-flash-sante / nex-n2.5-mini / nex-n2.5-pro / nemotron-3.5-content-safety；z-ai/glm-5.2、minimax-m3、minimax-m2.7 从列表消失） （2026-09-16 复查：z-ai/glm-5.2:free 与 inclusionai/ling-3.0-flash-vl:free 上新；minimax-m3:free / minimax-m2.7:free 下线；openrouter/free 仍在列） （2026-09-16 晚间复查：stealth/union-alpha 上新——union-alpha stealth 预览，$0 计费实测出字（cost:0），262k 视觉，不占 :free 日额） （2026-09-22 复查：qwen/qwen3.8-27b:free 上新——$0 定价、262k、支持视觉输入，实测连续 429 拥挤，交由插件冷却切换；其余 :free 款无变化） （2026-09-24 复查：inclusionai/ling-3.0-flash-vl:free 已从 /models 下架移除；其余 :free 款无变化） （2026-10-10 复查：ling-3.0-flash-fin/-sante、nex-n2.5-mini/pro、qwen3.8-27b、z-ai/glm-5.2、stealth/union-alpha 已 delisted 移除；apodex-1.1-mini 上新收录；inkling 系启用 agentic harness 围栏（带 referer/title 头仍 403）暂保留观察；gemma-4 系与 laguna-xs 为上游共享池 429（暂时性）；多款按 /models 元数据补视觉声明） （2026-10-15 复查：apodex/apodex-1.1-mini:free 已从 /models 下架移除（10-10 收录后短命下线）；openrouter/free 与 dots-3-note-preview:free 实测 200；inkling 系 agentic harness 围栏依旧（403）；gemma-4-31b-it 与 laguna-xs-2.1 仍为上游共享池 429；无新上 :free，现役 :free 收敛为 15 款） （2026-10-20 复查：/models 470 款、$0 计费 20 款；:free 新增 3 款实测均 200 出字——minimax/minimax-m3.1-flash:free（1M，text+image+video，2s）、nvidia/nemotron-3.5-super-vl:free（1M 多模态，18s 偏慢）、xingchen-agi/xing4.0-29b-a4b:free（262k，中文推理，2.6s）收入，现役 :free 15→18；google/lyria-3-pro/clip-preview 虽 $0 但为音乐生成非对话，不收录；openrouter/free 与 north-mini-code:free 复测 200）",
+      "note": "18 款现役免费档（2026-08-28 live 同步，含 openrouter/free 自动路由）；content-safety 分类器不收录。未充值约 50 次/天。 （2026-09-09 复查：新增 ling-3.0-flash-sante / nex-n2.5-mini / nex-n2.5-pro / nemotron-3.5-content-safety；z-ai/glm-5.2、minimax-m3、minimax-m2.7 从列表消失） （2026-09-16 复查：z-ai/glm-5.2:free 与 inclusionai/ling-3.0-flash-vl:free 上新；minimax-m3:free / minimax-m2.7:free 下线；openrouter/free 仍在列） （2026-09-16 晚间复查：stealth/union-alpha 上新——union-alpha stealth 预览，$0 计费实测出字（cost:0），262k 视觉，不占 :free 日额） （2026-09-22 复查：qwen/qwen3.8-27b:free 上新——$0 定价、262k、支持视觉输入，实测连续 429 拥挤，交由插件冷却切换；其余 :free 款无变化） （2026-09-24 复查：inclusionai/ling-3.0-flash-vl:free 已从 /models 下架移除；其余 :free 款无变化） （2026-10-10 复查：ling-3.0-flash-fin/-sante、nex-n2.5-mini/pro、qwen3.8-27b、z-ai/glm-5.2、stealth/union-alpha 已 delisted 移除；apodex-1.1-mini 上新收录；inkling 系启用 agentic harness 围栏（带 referer/title 头仍 403）暂保留观察；gemma-4 系与 laguna-xs 为上游共享池 429（暂时性）；多款按 /models 元数据补视觉声明） （2026-10-15 复查：apodex/apodex-1.1-mini:free 已从 /models 下架移除（10-10 收录后短命下线）；openrouter/free 与 dots-3-note-preview:free 实测 200；inkling 系 agentic harness 围栏依旧（403）；gemma-4-31b-it 与 laguna-xs-2.1 仍为上游共享池 429；无新上 :free，现役 :free 收敛为 15 款） （2026-10-20 复查：/models 470 款、$0 计费 20 款；:free 新增 3 款实测均 200 出字——minimax/minimax-m3.1-flash:free（1M，text+image+video，2s）、nvidia/nemotron-3.5-super-vl:free（1M 多模态，18s 偏慢）、xingchen-agi/xing4.0-29b-a4b:free（262k，中文推理，2.6s）收入，现役 :free 15→18；google/lyria-3-pro/clip-preview 虽 $0 但为音乐生成非对话，不收录；openrouter/free 与 north-mini-code:free 复测 200） （2026-10-22 复查：thinkingmachines/inkling / inkling-small 403「only available on agentic harnesses」，仅对 openrouter.ai/apps 登记的应用开放，移出免费档；nemotron-3-super-120b 404 疑为后端临时下线，暂留；gemma-4 两款 429 上游临时限流）",
       "defaultModel": "openrouter/free",
       "models": [
         {
@@ -231,24 +207,6 @@
           "id": "nvidia/nemotron-3.5-lightning:free",
           "name": "NVIDIA: Nemotron 3.5 Lightning",
           "contextWindow": 1000000
-        },
-        {
-          "id": "thinkingmachines/inkling-small:free",
-          "name": "Thinking Machines: Inkling Small",
-          "contextWindow": 1048576,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
-        },
-        {
-          "id": "thinkingmachines/inkling:free",
-          "name": "Thinking Machines: Inkling",
-          "contextWindow": 1048576,
-          "inputModalities": [
-            "text",
-            "image"
-          ]
         },
         {
           "id": "poolside/laguna-s-2.1:free",
@@ -350,8 +308,6 @@
         "dots-studio/dots-3-note-preview:free",
         "liquid/lfm-2.5-2.6b:free",
         "nvidia/nemotron-3.5-lightning:free",
-        "thinkingmachines/inkling-small:free",
-        "thinkingmachines/inkling:free",
         "poolside/laguna-s-2.1:free",
         "poolside/laguna-xs-2.1:free",
         "cohere/north-mini-code:free",

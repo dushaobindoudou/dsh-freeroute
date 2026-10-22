@@ -23,9 +23,10 @@
             produced = true
             yield ck
           }
-          // 成功：游标推进到下一把，多账号均匀分摊免费配额
+          // 成功：游标钉在这把 Key 上，后续请求一直用它，直到它鉴权/限流失效
+          // 才换下一把（同账号连续使用，上游的提示词缓存也能命中）
           for (let j = 0; j < ring.length; j++) {
-            if (ring[j].ref === ordered[i].ref) { keyCursor.set(upstream.id, (j + 1) % ring.length); break }
+            if (ring[j].ref === ordered[i].ref) { keyCursor.set(upstream.id, j); break }
           }
           return
         } catch (e) {
@@ -285,6 +286,14 @@
     function isSlow(upstreamId, model) {
       const e = firstTokenStats.get(upstreamId + '|' + model)
       return !!(e && Date.now() - e.at < SLOW_MEMORY_MS && e.ewmaMs > SLOW_TTFT_MS)
+    }
+
+    // 模型级门禁（MODEL_UNAVAILABLE）记 30 分钟：期间链里还有别的候选就直接
+    // 跳过这款，免得每轮都先吃一次 403 再切换。
+    const GATED_MEMORY_MS = 30 * 60 * 1000
+    const gatedModels = new Map() // 'upstream|model' -> until
+    function isGated(upstreamId, model) {
+      return (gatedModels.get(upstreamId + '|' + model) || 0) > Date.now()
     }
 
     function candidatesSync(pool, model) {
@@ -635,6 +644,7 @@
       for (let i = 0; i < cands.length; i++) {
         const cand = cands[i]
         if (dead.has(cand.upstream.id)) continue
+        if (isGated(cand.upstream.id, cand.model) && cands.slice(i + 1).some(function (c) { return !dead.has(c.upstream.id) && !isGated(c.upstream.id, c.model) })) continue
         if (maxAttempts > 0 && attempts >= maxAttempts) break
         attempts++
         const sameUpNext = !!(cands[i + 1] && cands[i + 1].upstream.id === cand.upstream.id)
@@ -676,6 +686,7 @@
             throw e
           }
           if (UPSTREAM_LEVEL_CODES.has(String((e && e.code) || ''))) dead.add(cand.upstream.id)
+          if (String((e && e.code) || '') === 'MODEL_UNAVAILABLE') gatedModels.set(cand.upstream.id + '|' + cand.model, Date.now() + GATED_MEMORY_MS)
           const nxt = cands[i + 1]
           if (nxt) log('[freeroute] 上游 ' + cand.upstream.id + ' 模型 ' + cand.model + ' 失败(' + String(e && e.code) + ')，切换到 ' + (sameUpNext ? '同上游备选 ' + nxt.model : nxt.upstream.id))
           if (String((e && e.code) || '') === 'SERVER') scheduleReprobe(cand.upstream.id)

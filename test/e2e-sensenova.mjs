@@ -1,4 +1,4 @@
-// 端到端验证：SenseNova 内置上游（token.sensenova.cn，真实端点）。
+// 端到端验证：SenseNova 内置上游（token.sensenova.ai，真实端点；2026-10-22 平台换域）。
 // 运行：FREEROUTE_E2E_SNS_KEY=sk-… node test/e2e-sensenova.mjs
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -107,7 +107,7 @@ async function chat(model) {
 }
 
 console.log('■ 3. 实测免费模型（经插件流式）')
-for (const m of ['sensenova-6.8-flash-lite', 'sensenova-6.7-flash-lite', 'deepseek-v4-flash']) {
+for (const m of ['sensenova-6.8-flash-lite']) {
   const r = await chat('sensenova/' + m)
   console.log('  ', r.err ? ('✗ ' + m + ' -> ' + r.err.code + ' ' + String(r.err.message).slice(0, 80)) : ('✓ ' + m + ' -> ' + JSON.stringify(r.text.slice(0, 20))))
 }

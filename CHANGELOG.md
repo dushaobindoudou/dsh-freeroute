@@ -4,6 +4,40 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.3]
+
+### Changed
+
+- **多 Key 改为「粘性」**：当前这把 Key 不失效就一直用（此前每次成功都把
+  游标推到下一把、逐请求轮转）。鉴权/限流失效才换下一把，换到的新 Key
+  同样一直用下去。并发请求不再因游标未推进而挤在同一把上又互相限流，
+  同账号连续请求也让上游的提示词缓存能命中。
+- 模型目录探测改用当前在用的 Key（此前固定用第 1 把，第 1 把失效时探测
+  失败、模型列表变空）。
+- OpenRouter 目录移除 `thinkingmachines/inkling` / `inkling-small`（403
+  「only available on agentic harnesses」，仅对 openrouter.ai/apps 登记的
+  应用开放）。
+- **SenseNova 平台换域（商汤日日新）**：注册入口 `console.sensenova.cn` →
+  `platform.sensenova.ai`，OpenAI 兼容端点 `token.sensenova.cn/v1` →
+  `token.sensenova.ai/v1`（`api.sensenova.cn` 仍 403 不可用，旧域 Key 在新域
+  一律 401 Forbidden）。
+- **sensenova 免费档只剩 `sensenova-6.8-flash-lite`**：新域带 Key `GET /models`
+  4 款（6.8-flash-lite / 6.7-flash-lite / u1-fast / u1.5-lite），实测仅
+  6.8-flash-lite 200 出字，其余三款 404 `model is not found`（plan 未开放，
+  不收录）；旧域的 `deepseek-v4-flash`（原默认）/ `deepseek-flash` /
+  `glm-5.2` / `kimi-k3` / `deepseek-v4.1-flash` 在新域全部 404，已从种子表与
+  远程目录移除，默认模型改为 `sensenova-6.8-flash-lite`。
+
+### Fixed
+
+- **模型级 403 不再连坐整环 Key 与整家上游**：「only available on…」「can
+  only be used from within…」「not available in your country」「not available
+  in the current token plan」这类只针对单款模型的 403，此前一律按 AUTH 处理：
+  逐把换 Key（每把冷却 30 分钟）、整家上游冷却 10 分钟——一款不对第三方开放
+  的模型就能把 OpenRouter 其余十几款可用模型一起拖下线。现归为
+  `MODEL_UNAVAILABLE`：不换 Key、不冷却上游，直接切下一个候选，并记住该款
+  30 分钟、期间链里有别的候选就直接跳过。
+
 ## [0.10.2]
 
 ### Fixed

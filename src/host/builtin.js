@@ -74,15 +74,17 @@ const BUILTIN_UPSTREAMS = [
   },
   {
     id: 'sensenova', name: 'SenseNova 商汤日日新',
-    baseUrl: 'https://token.sensenova.cn/v1', keyRef: 'FREEROUTE_SENSENOVA_API_KEY',
-    signupUrl: 'https://console.sensenova.cn',
-    note: 'OpenAI 兼容端点（token.sensenova.cn；api.sensenova.cn 会 403）。3 款实测免费；官方无 /models 列表，种子表即真相。',
-    defaultModel: 'deepseek-v4-flash',
-    freeModels: ['sensenova-6.8-flash-lite', 'sensenova-6.7-flash-lite', 'deepseek-v4-flash'],
+    baseUrl: 'https://token.sensenova.ai/v1', keyRef: 'FREEROUTE_SENSENOVA_API_KEY',
+    signupUrl: 'https://platform.sensenova.ai',
+    // 2026-10-22 平台换域：console.sensenova.cn → platform.sensenova.ai，
+    // token.sensenova.cn → token.sensenova.ai（旧域 Key 在新域 401 Forbidden）。
+    // 新域 /models 4 款，实测仅 6.8-flash-lite 出字；旧域的 deepseek / glm /
+    // kimi 系在新域全部 404，已移出种子表。
+    note: 'OpenAI 兼容端点（token.sensenova.ai；旧 token.sensenova.cn 仅旧 Key 有效，api.sensenova.cn 会 403）。新平台 /models 4 款，实测仅 6.8-flash-lite 出字。',
+    defaultModel: 'sensenova-6.8-flash-lite',
+    freeModels: ['sensenova-6.8-flash-lite'],
     models: [
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', contextWindow: 1048576, quality: 3 },
-      { id: 'sensenova-6.8-flash-lite', name: 'SenseNova 6.8 Flash Lite', contextWindow: 262144, quality: 2 },
-      { id: 'sensenova-6.7-flash-lite', name: 'SenseNova 6.7 Flash Lite', contextWindow: 262144, quality: 2 }
+      { id: 'sensenova-6.8-flash-lite', name: 'SenseNova 6.8 Flash Lite', contextWindow: 262144, quality: 2, inputModalities: ['text', 'image'] }
     ]
   }
 ]
@@ -91,14 +93,15 @@ const TUTORIALS = {
   opencode: ['打开 opencode.ai/zen 注册/登录（支持 GitHub 登录）', '在 Zen 页面生成 API Key', '复制密钥粘贴到上方输入框保存', '带 -free 后缀的模型免费；其余为探测到的付费可用模型'],
   openrouter: ['打开 openrouter.ai 注册/登录（支持 GitHub 登录）', '进入 Settings → Keys，点 Create Key', '复制密钥（sk-or-v1-…）粘贴到上方输入框保存', '选 id 带 :free 的模型即免费；未充值约 50 次/天，用完自动切其他上游'],
   'b-ai': ['打开 chat.b.ai 注册/登录（点面板上的邀请链接注册，双方各得额度）', '在个人设置 / API 页面生成 API Key', '复制密钥粘贴到上方输入框保存', 'hy3 / mimo-v2.5 在列（2026-09-16 复查免费档失效，充值后可用）；大陆网络通常需在配置里给该上游设 proxy'],
-  sensenova: ['打开 console.sensenova.cn 注册（商汤日日新）', '进入 API Key 管理创建密钥', '复制密钥粘贴到上方输入框保存', 'deepseek-v4-flash 与 sensenova-6.8/6.7-flash-lite 实测免费（2026-09-11）；glm-5.2 需工作区配额，u1 系列不可用']
+  sensenova: ['打开 platform.sensenova.ai 注册（商汤日日新）', '进入 API Key 管理创建密钥', '复制密钥粘贴到上方输入框保存', 'sensenova-6.8-flash-lite 实测免费（2026-10-22 新域实测 200）；6.7-flash-lite 与 u1 系列虽在 /models 在列但 404 plan 未开放']
 }
 
 const KNOWN_BASE = {
   opencode: 'https://opencode.ai/zen/v1',
-  // token.sensenova.cn 是官方 OpenAI 兼容端点；api.sensenova.cn/compatible-mode
-  // 对目录同步与推理均返回 403（2026-09-09 复核），旧值会静默换不来模型。
-  sensenova: 'https://token.sensenova.cn/v1',
+  // token.sensenova.ai 是新平台（platform.sensenova.ai）的官方 OpenAI 兼容
+  // 端点；旧 token.sensenova.cn 仍是旧域、旧 Key 只在那里有效，而
+  // api.sensenova.cn/compatible-mode 对目录同步与推理均返回 403。
+  sensenova: 'https://token.sensenova.ai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
   groq: 'https://api.groq.com/openai/v1',
   google: 'https://generativelanguage.googleapis.com/v1beta/openai',

@@ -819,6 +819,99 @@ section('13d. 多 Key 轮换：Key 级失败换下一把，不动上游健康')
   check('clear-key 清空整把 Key 环', rc.ok === true && mk3.configured === false && mk3.keys === 0, JSON.stringify({ ok: rc.ok, c: mk3.configured, k: mk3.keys }))
 }
 
+section('13d2. 多 Key 粘性：当前 Key 不失效就一直用，失效才换下一把')
+{
+  await isolatePool()
+  const posts = []
+  const gets = []
+  let k1Dead = false
+  const portS = await listen('keysticky', (req, res) => {
+    const auth = req.headers.authorization || ''
+    if (req.method === 'GET') {
+      gets.push(auth)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ object: 'list', data: [{ id: 'ks-free' }] }))
+      return
+    }
+    let body = ''
+    req.on('data', function (c) { body += c })
+    req.on('end', function () {
+      posts.push(auth)
+      if (k1Dead && auth === 'Bearer s1') {
+        res.writeHead(429, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'quota exhausted' } }))
+        return
+      }
+      return mkOk()(req, res)
+    })
+  })
+  const reg = await rpc('freeroute.apply-patch', {
+    patch: {
+      upstreams: { 'mock-ks': { enabled: true, custom: { baseUrl: 'http://127.0.0.1:' + portS + '/v1', models: [{ id: 'ks-free', name: 'KS' }], defaultModel: 'ks-free' } } },
+      order: ['mock-ks']
+    }
+  })
+  check('粘性上游注册成功', reg.ok === true, JSON.stringify(reg))
+  await rpc('freeroute.set-key', { id: 'mock-ks', key: 's1\ns2\ns3' })
+  for (let n = 0; n < 3; n++) await collect(adapter.stream({ provider: 'freeroute', model: 'ks-free', messages: msg('ping') }))
+  check('Key 正常时连续请求都用第 1 把（不轮转）', posts.length === 3 && posts.every((a) => a === 'Bearer s1'), JSON.stringify(posts))
+  k1Dead = true
+  posts.length = 0
+  const r1 = await collect(adapter.stream({ provider: 'freeroute', model: 'ks-free', messages: msg('ping') }))
+  check('第 1 把限流后换到第 2 把出字', r1.text === 'Mock reply OK' && posts.join(',') === 'Bearer s1,Bearer s2', JSON.stringify(posts))
+  posts.length = 0
+  for (let n = 0; n < 2; n++) await collect(adapter.stream({ provider: 'freeroute', model: 'ks-free', messages: msg('ping') }))
+  check('之后一直用第 2 把（不跳到第 3 把）', posts.length === 2 && posts.every((a) => a === 'Bearer s2'), JSON.stringify(posts))
+  gets.length = 0
+  await rpc('freeroute.probe', { id: 'mock-ks' })
+  check('目录探测用当前在用的 Key', gets.length >= 1 && gets[gets.length - 1] === 'Bearer s2', JSON.stringify(gets))
+}
+
+section('13d3. 模型级 403 门禁：不换 Key、不冷却上游，记住后直接跳过')
+{
+  await isolatePool()
+  const hitsA = []
+  const portGA = await listen('gate-a', (req, res) => {
+    if (req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ object: 'list', data: [{ id: 'gm-free' }, { id: 'ok-free' }] }))
+      return
+    }
+    let body = ''
+    req.on('data', function (c) { body += c })
+    req.on('end', function () {
+      hitsA.push((req.headers.authorization || '') + ' ' + (body.indexOf('gm-free') >= 0 ? 'gm' : 'ok'))
+      if (body.indexOf('gm-free') >= 0) {
+        res.writeHead(403, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: { message: 'gm-free is only available on agentic harnesses. Try plugging it into a coding agent', code: 403 } }))
+        return
+      }
+      return mkOk()(req, res)
+    })
+  })
+  const reg = await rpc('freeroute.apply-patch', {
+    patch: {
+      upstreams: {
+        'mock-ga': { enabled: true, custom: { baseUrl: 'http://127.0.0.1:' + portGA + '/v1', models: [{ id: 'gm-free', name: 'GM' }, { id: 'ok-free', name: 'OKM' }], defaultModel: 'gm-free' } },
+        'mock-gb': { enabled: true, custom: { baseUrl: b(portOk), noAuth: true, models: [{ id: 'gm-free', name: 'GM' }], defaultModel: 'gm-free' } }
+      },
+      order: ['mock-ga', 'mock-gb']
+    }
+  })
+  check('门禁上游注册成功', reg.ok === true, JSON.stringify(reg))
+  await rpc('freeroute.set-key', { id: 'mock-ga', key: 'g1\ng2\ng3' })
+  const g1 = await collect(adapter.stream({ provider: 'freeroute', model: 'gm-free', messages: msg('ping') }))
+  check('门禁 403 切到另一家同款出字', g1.text === 'Mock reply OK', JSON.stringify(g1))
+  check('门禁 403 不轮换 Key（只打 1 次）', hitsA.length === 1 && hitsA[0] === 'Bearer g1 gm', JSON.stringify(hitsA))
+  const sg = await state()
+  const ga = sg.upstreams.find((u) => u.id === 'mock-ga')
+  check('门禁 403 不冷却上游、不记 Key 失效', ga.health.state === 'up' && (!ga.health.keyFails || ga.health.keyFails.length === 0), JSON.stringify(ga.health))
+  await collect(adapter.stream({ provider: 'freeroute', model: 'gm-free', messages: msg('ping') }))
+  check('记住门禁后直接跳过该款（不再先吃 403）', hitsA.length === 1, JSON.stringify(hitsA))
+  const g3 = await collect(adapter.stream({ provider: 'freeroute', model: 'mock-ga/ok-free', messages: msg('ping') }))
+  check('同家其他模型、同一把 Key 照常可用', g3.text === 'Mock reply OK' && hitsA[hitsA.length - 1] === 'Bearer g1 ok', JSON.stringify(hitsA))
+}
+
 section('13e. 失败触发重探：目录即真相的自愈')
 {
   // 目录先给 dead2-free；其 chat 失败(502) 触发重探，重探返回新目录

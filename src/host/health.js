@@ -26,6 +26,12 @@
       s.lastUsedAt = Date.now()
       const h = healthFor(id)
       const code = String((err && err.code) || 'UNKNOWN')
+      // 模型级门禁只说明这一款不对外开放，上游本身是好的：不计连续失败、不冷却
+      if (code === 'MODEL_UNAVAILABLE') {
+        h.lastError = emsg(err)
+        h.lastErrorAt = Date.now()
+        return
+      }
       // 所有失败都计入 consecutiveFailures：冷却到期后 health.state 仍显示
       // degraded（而非误判回 up），直到下一次成功请求才会复位。
       h.consecutiveFailures += 1

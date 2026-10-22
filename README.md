@@ -23,8 +23,12 @@ token reaches your session**. A local OpenAI-compatible endpoint is included.
 - **Multi-key rotation** — free quotas are per-account, so each upstream
   accepts up to 8 keys (separated by newlines/commas in the field, or
   `KEY_2`…`KEY_8` env vars). AUTH / rate-limit failures cool down that single
-  key and rotate to the next one before any upstream is penalized; successes
-  advance the cursor so free quota spreads evenly across accounts.
+  key and rotate to the next one before any upstream is penalized. A working key
+  stays in use until it fails (same account across turns, so provider-side
+  prompt caches keep hitting); the key rotated to then sticks the same way.
+  403s that gate a single model ("only available on…", region / plan limits)
+  are model-level: no key rotation, no upstream cooldown — that model is just
+  skipped for 30 minutes.
 - **Privacy by default** — the key field shows a read-only `••••••` mask until
   you click **显示** (show), which opens the editor prefilled with the full key
   ring (one key per line) ready to edit; saving returns straight to the masked

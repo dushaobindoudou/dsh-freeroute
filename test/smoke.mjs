@@ -341,7 +341,7 @@ assert.ok(!st3.upstreams.some((u) => u.id === 'mock-b'), '上游列表不再含 
 console.log('■ 5b. 内置/远程上游标记删除 + 增量同步不复活 + 恢复')
 // 本地目录服务器：先 2 条（sensenova 内置同名 + cerebras 远程新增），再改内容
 let catalogBody = { upstreams: [
-  { id: 'sensenova', name: 'SenseNova 商汤日日新', baseUrl: 'https://token.sensenova.cn/v1', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
+  { id: 'sensenova', name: 'SenseNova 商汤日日新', baseUrl: 'https://token.sensenova.ai/v1', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
   { id: 'cerebras', name: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', keyRef: 'FREEROUTE_CEREBRAS_API_KEY' },
 ] }
 const catPort = await listen((req, res) => {
@@ -362,7 +362,7 @@ assert.ok((stB.hiddenUpstreams || []).some((h) => h.id === 'sensenova'), 'hidden
 assert.ok(stB.upstreams.some((u) => u.id === 'cerebras'), '其它远程上游不受影响')
 // 改目录内容再同步：sensenova 变更 + cerebras 撤下 —— 已删除的不复活
 catalogBody = { upstreams: [
-  { id: 'sensenova', name: 'SenseNova 改名', baseUrl: 'https://token.sensenova.cn/v2', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
+  { id: 'sensenova', name: 'SenseNova 改名', baseUrl: 'https://token.sensenova.ai/v2', keyRef: 'FREEROUTE_SENSENOVA_API_KEY' },
 ] }
 const s2 = await remote.catalogSync({})
 assert.equal(s2.ok, true, '第二次同步成功')

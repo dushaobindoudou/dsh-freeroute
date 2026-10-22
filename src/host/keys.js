@@ -1,9 +1,9 @@
     // ---- 多 Key 轮换 ----
     // 免费额度按账号计：同厂商多账号多把 Key 是常态。约定扩展引用
-    // FREEROUTE_X_API_KEY / _2 / _3…（至多 8 把）：鉴权或限流失败换下一把
-    // （Key 级冷却），全部失败才把失败上报给上游级熔断。
+    // FREEROUTE_X_API_KEY / _2 / _3…（至多 8 把）：一直用当前这把，鉴权或
+    // 限流失败才换下一把（Key 级冷却），全部失败才把失败上报给上游级熔断。
     const keyHealth = new Map() // ref -> cooldownUntil（Key 级冷却）
-    const keyCursor = new Map() // upstreamId -> 轮转起始下标（成功后推进，均匀分摊配额）
+    const keyCursor = new Map() // upstreamId -> 当前在用的 Key 下标（成功时钉住，失效才换）
     const keyFailNotes = new Map() // upstreamId -> 最近 Key 级失败 [{index, code, at}]（面板「第几把失效」提示）
 
     // 用户配置的第几把：ref 无 _N 后缀为第 1 把，_2/_3… 依此类推
@@ -61,7 +61,8 @@
     }
 
     async function maybeKey(up) {
-      const ring = await keyRing(up)
-      return ring.length > 0 ? ring[0].key : ''
+      // 探测用当前在用的那把：第 1 把失效时不至于拿坏 Key 去拉目录
+      const ordered = orderKeys(up, await keyRing(up))
+      return ordered.length > 0 ? ordered[0].key : ''
     }
 

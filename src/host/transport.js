@@ -103,11 +103,17 @@
       if (cached > 0) out.cacheReadTokens = cached
       return out
     }
+    // 模型级门禁：Key 有效，只是这款模型不对当前客户端/地区/套餐开放
+    // （OpenRouter「only available on agentic harnesses」、OpenCode
+    // FreeTierError、RegionError、SenseNova「not available in the current token
+    // plan」）。多为 403，若按 AUTH 处理会把整环 Key 和整家上游一起冷却。
+    const MODEL_GATE_RE = /only available (on|in|within|to|for)|can only be used (from|within|in)|not available in (your|this) (country|region)|regionerror|freetiererror|not available in the current (token )?plan/i
     function wireError(e) {
       const msg = String((e && (e.message || e.type)) || '上游错误')
       const blob = (msg + ' ' + String((e && e.code) || '') + ' ' + String((e && e.type) || '')).toLowerCase()
       let code = 'SERVER'
-      if (/rate|429|quota|配额|credit/i.test(blob)) code = 'RATE_LIMIT'
+      if (MODEL_GATE_RE.test(blob)) code = 'MODEL_UNAVAILABLE'
+      else if (/rate|429|quota|配额|credit/i.test(blob)) code = 'RATE_LIMIT'
       else if (/auth|401|403|api key|apikey|unauthorized/.test(blob)) code = 'AUTH'
       else if (/context|token limit|too long/.test(blob)) code = 'CONTEXT_WINDOW_EXCEEDED'
       return mkFail(msg, code)
@@ -223,6 +229,7 @@
         // 非 SSE 的 JSON 错误（或代理错误页）：按 HTTP 状态码与错误体分类，
         // 让 AUTH / RATE_LIMIT / SERVER 熔断能正确触发。
         if (!sawSse) {
+          if (httpStatus === 403 && MODEL_GATE_RE.test(plain)) throw mkFail('该模型不对当前客户端/地区/套餐开放 (HTTP 403)：' + plainTail(), 'MODEL_UNAVAILABLE')
           if (httpStatus === 401 || httpStatus === 403) throw mkFail('上游鉴权失败 (HTTP ' + httpStatus + ')' + (plainTail() ? '：' + plainTail() : '') + (httpStatus === 403 ? '（403 常见原因：Key 有效但账户未开通该模型 / 未完成实名，或免费额度不覆盖此模型）' : ''), 'AUTH')
           if (httpStatus === 429 || httpStatus === 402) throw mkFail('上游限流/额度 (HTTP ' + httpStatus + ')' + (plainTail() ? '：' + plainTail() : ''), 'RATE_LIMIT')
           if (httpStatus >= 400) throw mkFail('上游错误 (HTTP ' + httpStatus + ')' + (plainTail() ? '：' + plainTail() : ''), 'SERVER')
