@@ -90,10 +90,18 @@ roles, arrow-key navigation, visited panels stay mounted):
   settings page — one expandable card per upstream (header: name, status
   summary, priority controls, enable toggle; click to expand keys /
   connectivity test / model probe / signup links), with Models and Advanced
-  (global proxy + remote catalog) as cards of the same form. Non-standard
+  (global proxy + remote catalog + model list scope) as cards of the same form. Non-standard
   gateways are supported in the config file via `custom.chatPath`
   (override `/chat/completions`) and `custom.requestExtra` (extra scalar body
   fields; `model: null` omits the model field — e.g. GMI's `/autoroute`).
+
+Advanced also has an **Auto only** switch that changes nothing but what the
+model selector shows: when on, the selector lists only `freeroute/auto`
+(same as `{"showModels": "auto-only"}` in the config file), so free models no
+longer flood the picker or the autocomplete. The default (`auto` + every free
+model) is unchanged for existing configs; `freeroute/<model>` still dispatches
+explicitly — the switch only trims the listing, not the failover chain, and the
+panel's free-model list (a diagnostics view) stays complete.
 
 There is no sibling freeroute item in the settings nav (a standalone section
 appears only if the host ships no wrappable models entry). The `/freeproxy`

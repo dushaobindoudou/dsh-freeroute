@@ -43,7 +43,12 @@
     function validatePatch(p) {
       if (!p || typeof p !== 'object' || Array.isArray(p)) return 'patch 需为对象'
       for (const k of Object.keys(p)) {
-        if (k !== 'order' && k !== 'upstreams' && k !== 'catalog' && k !== 'autoTakeover' && k !== 'proxy') return '不允许的字段: ' + k
+        if (k !== 'order' && k !== 'upstreams' && k !== 'catalog' && k !== 'autoTakeover' && k !== 'proxy' && k !== 'showModels') return '不允许的字段: ' + k
+      }
+      // 模型选择器范围：空串 = 回到默认（auto + 全部免费模型）；否则只接受 'auto-only'
+      if (p.showModels !== undefined) {
+        if (typeof p.showModels !== 'string') return 'showModels 需为字符串'
+        if (p.showModels !== '' && p.showModels !== 'auto-only') return "showModels 仅支持 'auto-only' 或空串（恢复默认）"
       }
       // 全局代理：空串 = 清除（sanitize 会丢弃）；非空需 http(s):// 开头
       if (p.proxy !== undefined) {

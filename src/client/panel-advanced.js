@@ -99,3 +99,27 @@
     tr('catHint4')))
   catKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h5' },
     tr('catHint5')))
+
+  // 模型列表范围卡：只改 listModels 的输出（issue #10）。关 = 历史行为
+  // （auto + 全部免费模型）；开 = 选择器只留 auto。与自动切换链无关。
+  const smOn = st.showModels === 'auto-only'
+  const smKids = []
+  smKids.push(React.createElement('h3', { className: 'frp-title', key: 't' }, tr('scopeTitle')))
+  smKids.push(React.createElement('div', { className: 'frp-stats', key: 'st' },
+    smOn ? tr('scopeOn') : tr('scopeOff')))
+  smKids.push(React.createElement('div', { className: 'frp-form-row', key: 'row' },
+    React.createElement('label', { className: 'frp-switch', title: tr('scopeAutoOnlyTitle', { route: st.route }) },
+      React.createElement('input', {
+        type: 'checkbox',
+        checked: smOn,
+        disabled: busy === 'sm',
+        onChange: function (e) {
+          act('freeroute.apply-patch', { patch: { showModels: e.target.checked ? 'auto-only' : '' } }, 'sm')
+        }
+      }),
+      React.createElement('span', { className: 'frp-slider' }),
+      React.createElement('span', { className: 'frp-switchtext' }, tr('scopeAutoOnly')))))
+  smKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h1' },
+    tr('scopeHint1')))
+  smKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h2' },
+    tr('scopeHint2')))

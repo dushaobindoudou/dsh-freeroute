@@ -109,6 +109,8 @@
         persistence: settings !== undefined,
         autoTakeover: userConfig.autoTakeover !== false,
         autoInjected: injectedNow,
+        // 模型选择器范围：'free'（默认，auto + 全部免费模型）| 'auto-only'（只留 auto）
+        showModels: userConfig.showModels === 'auto-only' ? 'auto-only' : 'free',
         globalProxy: userConfig.proxy || '',
         catalog: {
           remoteUrl: (userConfig.catalog && userConfig.catalog.remoteUrl) || DEFAULT_CATALOG_URL,

@@ -245,7 +245,7 @@ const HOST_STATE = {
   version: '0.8.10-test', route: 'freeroute',
   endpoint: { base: 'http://127.0.0.1:3080/freeroute/v1' },
   currentSelection: { provider: 'freeroute', model: 'auto' },
-  autoTakeover: true, autoInjected: false, globalProxy: '',
+  autoTakeover: true, autoInjected: false, showModels: 'free', globalProxy: '',
   totals: { requests: 12, ok: 10, failed: 2, tokensIn: 100, tokensOut: 200 },
   catalog: { remoteUrl: 'https://config.freetokenbox.com/freeroute.json', lastSyncAt: 1757000000000, lastCount: 10, lastFormat: 'native', lastSyncError: '' },
   models: [
@@ -267,8 +267,10 @@ await (async function () {
   section('7. 面板渲染：插件页同款可展开卡片')
   {
     const sr = makeStatefulReact()
+    const calls2 = []
     const host2 = {
-      call: function (method) {
+      call: function (method, args) {
+        calls2.push({ method: method, args: args })
         if (method === 'freeroute.state') return Promise.resolve(HOST_STATE)
         return Promise.resolve({ ok: true })
       }
@@ -343,6 +345,14 @@ await (async function () {
     const adv = tree4.children[3]
     check('高级设置展开为字段分组', adv.children[1].props.className === 'frp-ucard-body' && adv.children[1].children[0].props.className === 'frp-fgroup' && adv.children[1].children[1].props.className === 'frp-fgroup')
     check('面板收尾不再有独立 frp-card 块', tree4.children.every(function (k) { return k.props.className !== 'frp-card' }))
+    // 模型列表范围（issue #10）：高级设置第三个分组是一枚开关，切换写 showModels
+    const smGroup = adv.children[1].children[2]
+    check('高级设置含模型列表范围分组', smGroup.props.className === 'frp-fgroup')
+    const smSwitch = smGroup.children[2].children[0]
+    check('模型列表范围是一枚开关（默认关）', smSwitch.props.className === 'frp-switch' && smSwitch.children[0].props.type === 'checkbox' && smSwitch.children[0].props.checked === false)
+    smSwitch.children[0].props.onChange({ target: { checked: true } })
+    const smCall = calls2.filter(function (c) { return c.method === 'freeroute.apply-patch' })[0]
+    check('开关写入 showModels: auto-only', !!smCall && smCall.args.patch.showModels === 'auto-only', JSON.stringify(smCall && smCall.args))
   }
 })()
 

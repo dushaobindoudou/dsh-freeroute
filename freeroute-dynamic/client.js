@@ -1,4 +1,4 @@
-const CSS_VERSION = '0.10.3'
+const CSS_VERSION = '0.11.0'
 // 版本标记：sweepStaleStyles() 依此识别并清掉旧版本孤儿样式。
 const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
@@ -180,6 +180,7 @@ const STRINGS = {
     contextWindow: '上下文',
     unknown: '未知',
     advancedTitle: '高级设置',
+    advancedSub: '代理 · 目录 · 模型列表',
     remoteCatalog: '远程目录 JSON',
     proxyTitle: '全局代理（默认关闭）',
     proxyPlaceholder: 'http://127.0.0.1:7890',
@@ -189,6 +190,13 @@ const STRINGS = {
     proxyOff: '未启用（直连）',
     proxyHint1: '· 所有未单独配置代理的上游共用此代理（对话请求与模型探测）',
     proxyHint2: '· 上游自定义 / 目录声明的 proxy 优先于全局；远程目录同步始终直连',
+    scopeTitle: '模型列表范围',
+    scopeAutoOnly: '只显示 Auto',
+    scopeAutoOnlyTitle: '开启后模型选择器里只留 {route}/auto（自动切换链）：免费模型不再铺进列表，显式指定 {route}/<模型> 仍可派发',
+    scopeOn: '只显示 auto —— 免费模型已从选择器隐藏',
+    scopeOff: 'auto + 全部免费模型（默认）',
+    scopeHint1: '· 只影响 dsh 的模型选择器，不影响自动切换链，也不影响本面板的免费模型列表',
+    scopeHint2: '· 配置文件里的等价写法：{"showModels": "auto-only"}',
     catTitle: '远程目录（JSON）',
     configFile: '配置文件：',
     settingsFallback: 'settings.yaml（JSON 文件不可用时兜底）',
@@ -270,6 +278,7 @@ const STRINGS = {
     contextWindow: 'Context',
     unknown: 'unknown',
     advancedTitle: 'Advanced',
+    advancedSub: 'proxy · catalog · models',
     remoteCatalog: 'Remote catalog JSON',
     proxyTitle: 'Global proxy (off by default)',
     proxyPlaceholder: 'http://127.0.0.1:7890',
@@ -279,6 +288,13 @@ const STRINGS = {
     proxyOff: 'Disabled (direct)',
     proxyHint1: '· Applies to every upstream without its own proxy (chat + model probing)',
     proxyHint2: '· Per-upstream / catalog proxy wins over global; catalog sync is always direct',
+    scopeTitle: 'Model list scope',
+    scopeAutoOnly: 'Auto only',
+    scopeAutoOnlyTitle: 'When on, the model selector only lists {route}/auto (the failover chain): free models are no longer listed, but {route}/<model> still dispatches',
+    scopeOn: 'Only auto — free models are hidden from the selector',
+    scopeOff: 'auto + all free models (default)',
+    scopeHint1: '· Affects the dsh model selector only — not the failover chain, nor the free model list in this panel',
+    scopeHint2: '· Same setting in the config file: {"showModels": "auto-only"}',
     catTitle: 'Remote catalog (JSON)',
     configFile: 'Config file: ',
     settingsFallback: 'settings.yaml (fallback when JSON file unavailable)',
@@ -840,6 +856,30 @@ function Section(props) {
     tr('catHint4')))
   catKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h5' },
     tr('catHint5')))
+
+  // 模型列表范围卡：只改 listModels 的输出（issue #10）。关 = 历史行为
+  // （auto + 全部免费模型）；开 = 选择器只留 auto。与自动切换链无关。
+  const smOn = st.showModels === 'auto-only'
+  const smKids = []
+  smKids.push(React.createElement('h3', { className: 'frp-title', key: 't' }, tr('scopeTitle')))
+  smKids.push(React.createElement('div', { className: 'frp-stats', key: 'st' },
+    smOn ? tr('scopeOn') : tr('scopeOff')))
+  smKids.push(React.createElement('div', { className: 'frp-form-row', key: 'row' },
+    React.createElement('label', { className: 'frp-switch', title: tr('scopeAutoOnlyTitle', { route: st.route }) },
+      React.createElement('input', {
+        type: 'checkbox',
+        checked: smOn,
+        disabled: busy === 'sm',
+        onChange: function (e) {
+          act('freeroute.apply-patch', { patch: { showModels: e.target.checked ? 'auto-only' : '' } }, 'sm')
+        }
+      }),
+      React.createElement('span', { className: 'frp-slider' }),
+      React.createElement('span', { className: 'frp-switchtext' }, tr('scopeAutoOnly')))))
+  smKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h1' },
+    tr('scopeHint1')))
+  smKids.push(React.createElement('div', { className: 'frp-stats frp-muted', key: 'h2' },
+    tr('scopeHint2')))
   const plainModels = st.models.filter(function (m) { return m.id !== 'auto' })
   const upName = {}
   for (const u of st.upstreams) upName[u.id] = u.name || u.id
@@ -908,10 +948,11 @@ function Section(props) {
   self.push(React.createElement('div', {
     key: 'adv', className: 'frp-ucard' + (advOpen ? ' frp-ucard-open' : '')
   },
-    ucardHead(tr('advancedTitle'), tr('remoteCatalog'), advOpen, function () { setAdvOpen(!advOpen) }),
+    ucardHead(tr('advancedTitle'), tr('advancedSub'), advOpen, function () { setAdvOpen(!advOpen) }),
     advOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
       React.createElement('div', { className: 'frp-fgroup', key: 'px' }, pxKids),
-      React.createElement('div', { className: 'frp-fgroup', key: 'cat' }, catKids)) : null))
+      React.createElement('div', { className: 'frp-fgroup', key: 'cat' }, catKids),
+      React.createElement('div', { className: 'frp-fgroup', key: 'sm' }, smKids)) : null))
 
   return React.createElement('div', { className: 'frp' }, self)
 }

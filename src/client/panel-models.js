@@ -66,9 +66,10 @@
   self.push(React.createElement('div', {
     key: 'adv', className: 'frp-ucard' + (advOpen ? ' frp-ucard-open' : '')
   },
-    ucardHead(tr('advancedTitle'), tr('remoteCatalog'), advOpen, function () { setAdvOpen(!advOpen) }),
+    ucardHead(tr('advancedTitle'), tr('advancedSub'), advOpen, function () { setAdvOpen(!advOpen) }),
     advOpen ? React.createElement('div', { className: 'frp-ucard-body', key: 'body' },
       React.createElement('div', { className: 'frp-fgroup', key: 'px' }, pxKids),
-      React.createElement('div', { className: 'frp-fgroup', key: 'cat' }, catKids)) : null))
+      React.createElement('div', { className: 'frp-fgroup', key: 'cat' }, catKids),
+      React.createElement('div', { className: 'frp-fgroup', key: 'sm' }, smKids)) : null))
 
   return React.createElement('div', { className: 'frp' }, self)

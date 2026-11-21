@@ -335,6 +335,15 @@ check('RPC 处理器已注册（state 等）', handlers.has('freeroute.state') &
   const rk1c = await rpc('freeroute.clear-key', { id: 'openrouter' })
   check('clear-key 还原现场（后续 section 候选池不含真实网络上游）', rk1c.ok === true)
   check('自动接管默认开启', st.autoTakeover === true)
+  // showModels（issue #10）：默认 free（auto + 全部免费模型），auto-only 只留 auto
+  check('默认模型列表范围 = free', st.showModels === 'free', String(st.showModels))
+  const rsm1 = await rpc('freeroute.apply-patch', { patch: { showModels: 'auto-only' } })
+  check('apply-patch 接受 showModels: auto-only', rsm1.ok === true, JSON.stringify(rsm1))
+  check('state 反映 showModels = auto-only', (await state()).showModels === 'auto-only')
+  const rsmBad = await rpc('freeroute.apply-patch', { patch: { showModels: 'nope' } })
+  check('showModels 非法值被拒绝', rsmBad.ok === false, JSON.stringify(rsmBad))
+  const rsm2 = await rpc('freeroute.apply-patch', { patch: { showModels: '' } })
+  check('showModels 清空恢复默认', rsm2.ok === true && (await state()).showModels === 'free')
   check('本次进程尚未接管', st.autoInjected === false)
   check('state 不再含 settingsPage（模型页呈现已移到客户端）', st.settingsPage === undefined, JSON.stringify(st.settingsPage))
 }

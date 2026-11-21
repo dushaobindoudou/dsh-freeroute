@@ -4,7 +4,19 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.11.0]
+
+### Added
+
+- **模型选择器范围可配（`showModels`）**：只想跑 `auto` 自动切换链的用户，
+  可在设置 → 高级设置打开「只显示 Auto」，或在配置文件里写
+  `{"showModels": "auto-only"}`。开启后 `listModels` 只返回
+  `freeroute/auto`，免费模型不再铺满选择器（自动补全也不再被干扰）；
+  免费模型轮换频繁时这个列表本来只是噪音
+  （[#10](https://github.com/dushaobindoudou/dsh-freeroute/issues/10)）。
+  缺省（不写 / 空串）= 历史行为 `auto + 全部免费模型`，老配置不受影响；
+  显式指定 `freeroute/<模型 id>` 仍可派发——开关只改列表输出，不动路由。
+  面板里的「免费」模型清单不受影响（那是排查用的诊断视图）。
 
 ### Fixed
 

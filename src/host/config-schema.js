@@ -59,6 +59,10 @@ function sanitizeConfig(raw) {
   }
   if (typeof src.autoTakeover === 'boolean') out.autoTakeover = src.autoTakeover
   if (typeof src.autoInjected === 'boolean') out.autoInjected = src.autoInjected
+  // 模型选择器的输出范围：缺省 = auto + 全部免费模型（历史行为）。
+  // 'auto-only' = 选择器只留 auto，免费模型不再铺进列表（issue #10）；
+  // 显式指定 freeroute/<id> 仍可派发，不受影响。
+  if (src.showModels === 'auto-only') out.showModels = 'auto-only'
   // 接管前的用户原默认（显式打开开关授权覆盖时备份，关闭时恢复）
   if (src.takeoverBackup && typeof src.takeoverBackup === 'object') {
     const tb = src.takeoverBackup
