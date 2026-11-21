@@ -1,3 +1,13 @@
+    // curl 子进程的工作目录：必须用平台临时目录。POSIX '/tmp' 在 Windows 上解析为
+    // C:\tmp，默认不存在 → spawn 直接 ENOENT，所有请求 502 STREAM_CLOSED（issue #11）。
+    // osx 为空（动态沙箱无 os 能力或无 tmpdir）时退回 '.'（进程当前目录必然存在）。
+    function freerouteSpawnCwd() {
+      if (osx && typeof osx.tmpdir === 'function') {
+        try { const dir = osx.tmpdir(); if (dir) return dir } catch (e) { /* ignore */ }
+      }
+      return '.'
+    }
+
     async function ensureCurl() {
       if (curlCache) return curlCache
       if (subprocess === undefined) throw mkFail('subprocess 服务不可用，无法发起请求', 'CONFIG')

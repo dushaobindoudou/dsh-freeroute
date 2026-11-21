@@ -21,7 +21,7 @@
           if (proxy) argv.push('--proxy', String(proxy))
           for (const pair of Object.entries(headers || {})) argv.push('-H', pair[0] + ': ' + pair[1])
           argv.push(url, '-w', TRAILER)
-          proc = subprocess.spawn({ argv: argv, cwd: '/tmp', stdio: { stdin: 'ignore', stdout: 'pipe', stderr: { maxBytes: 2048 } }, graceMs: 3000 })
+          proc = subprocess.spawn({ argv: argv, cwd: freerouteSpawnCwd(), stdio: { stdin: 'ignore', stdout: 'pipe', stderr: { maxBytes: 2048 } }, graceMs: 3000 })
         } catch (e) {
           finish(reject, mkFail('curl 启动失败: ' + emsg(e), 'TRANSPORT'))
           return

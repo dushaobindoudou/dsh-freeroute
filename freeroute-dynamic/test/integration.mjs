@@ -19,7 +19,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const __fs = await import('node:fs')
 const __os = await import('node:os')
 globalThis.__nodeFs = { mkdirSync: __fs.mkdirSync, readFileSync: __fs.readFileSync, renameSync: __fs.renameSync, statSync: __fs.statSync, writeFileSync: __fs.writeFileSync }
-globalThis.__nodeOs = { homedir: __os.homedir }
+globalThis.__nodeOs = { homedir: __os.homedir, tmpdir: __os.tmpdir }
 const CFG = __os.tmpdir() + '/freeroute-test-' + process.pid + '.json'
 try { __fs.unlinkSync(CFG) } catch { /* 不存在即跳过 */ }
 // 启动 4s 后的首轮目录同步默认拉线上主源（真实网络、30s 超时）：网络慢时它会
