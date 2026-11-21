@@ -1,4 +1,4 @@
-const CSS_VERSION = '0.11.0'
+const CSS_VERSION = '0.11.1'
 // 版本标记：sweepStaleStyles() 依此识别并清掉旧版本孤儿样式。
 const CSS = '/* dsh-freeroute-client-css v' + CSS_VERSION + ' */\n' + [
   '.frp { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary, inherit); font-size: 13px; }',
@@ -181,7 +181,6 @@ const STRINGS = {
     unknown: '未知',
     advancedTitle: '高级设置',
     advancedSub: '代理 · 目录 · 模型列表',
-    remoteCatalog: '远程目录 JSON',
     proxyTitle: '全局代理（默认关闭）',
     proxyPlaceholder: 'http://127.0.0.1:7890',
     proxySave: '保存代理',
@@ -279,7 +278,6 @@ const STRINGS = {
     unknown: 'unknown',
     advancedTitle: 'Advanced',
     advancedSub: 'proxy · catalog · models',
-    remoteCatalog: 'Remote catalog JSON',
     proxyTitle: 'Global proxy (off by default)',
     proxyPlaceholder: 'http://127.0.0.1:7890',
     proxySave: 'Save proxy',

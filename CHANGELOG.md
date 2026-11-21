@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.1]
+
+### Fixed
+
+- **`showModels` 配置未持久化落盘**：`writeConfigFile()` 组装 `freeroute.json` 时
+  漏掉了 `showModels` 字段，导致开关「只显示 Auto」后重启即失效，且手写进
+  `freeroute.json` 的 `showModels` 会在其他配置写盘时被静默擦除
+  （[#10](https://github.com/dushaobindoudou/dsh-freeroute/issues/10) 补丁）。
+- **`listModels()` 热加载与早返回**：开头补调 `maybeReloadConfig()`，手改
+  `freeroute.json` 后打开模型选择器即可生效无需先开设置页；`auto-only` 模式下
+  直接返回 `auto`，不再无谓遍历上游凭据。
+- `writeConfigFile()` 截取父目录兼容 Windows 反斜杠路径；smoke 与集成测试补充
+  `showModels` 磁盘落盘与热加载回归断言。
+
 ## [0.11.0]
 
 ### Added

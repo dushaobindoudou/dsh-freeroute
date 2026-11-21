@@ -770,13 +770,14 @@
         // 只展示「免费且可用」：auto -> 免费模型（通用名，跨上游合并去重）。
         // 未配 Key 上游的模型不展示（选了也用不了）；付费模型不进选择器，
         // 但显式指定（freeroute/<id> 或通用名）仍可派发，见 candidatesSync。
-        const readySet = await readyUpstreamIdSet()
+        maybeReloadConfig()
         // 模态声明：auto 不声明（未知 = 允许附图，路由失败再自动切换）；
         // 单个免费模型仅在来源明确声明支持图片时带上 ['text','image']。
         const out = [{ provider: ROUTE, id: 'auto', name: '⚡ Auto（自动切换）', description: '优先多家共有的主流模型，失败先换同款的其他上游，再换窗口相当的其他模型' }]
         // showModels: 'auto-only' —— 选择器只留 auto（issue #10）。免费模型轮换频繁，
         // 只想跑 failover 链的用户不需要它们铺满列表；显式指定 freeroute/<id> 仍可派发。
         if (userConfig.showModels === 'auto-only') return out
+        const readySet = await readyUpstreamIdSet()
         const freeList = []
         for (const entry of buildAliasIndex().values()) {
           if (entry.free !== true) continue

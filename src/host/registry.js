@@ -19,13 +19,14 @@
     function writeConfigFile() {
       if (fsx === null || !configPath) return false
       try {
-        const cut = configPath.lastIndexOf('/')
+        const cut = Math.max(configPath.lastIndexOf('/'), configPath.lastIndexOf('\\'))
         if (cut > 0) { try { fsx.mkdirSync(configPath.slice(0, cut), { recursive: true }) } catch (e2) { } }
         const tmp = configPath + '.tmp'
         const payload = { order: userConfig.order || [], upstreams: userConfig.upstreams || {} }
         if (userConfig.proxy !== undefined) payload.proxy = userConfig.proxy
         if (userConfig.autoTakeover !== undefined) payload.autoTakeover = userConfig.autoTakeover
         if (userConfig.autoInjected !== undefined) payload.autoInjected = userConfig.autoInjected
+        if (userConfig.showModels !== undefined) payload.showModels = userConfig.showModels
         if (userConfig.takeoverBackup !== undefined) payload.takeoverBackup = userConfig.takeoverBackup
         if (userConfig.catalog !== undefined) payload.catalog = userConfig.catalog
         fsx.writeFileSync(tmp, JSON.stringify(payload, null, 2) + '\n', 'utf8')

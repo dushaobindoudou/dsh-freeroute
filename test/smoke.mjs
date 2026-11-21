@@ -6,7 +6,7 @@
 // Full behavioral coverage (137 assertions) lives in
 // freeroute-dynamic/test/integration.mjs against the same source body.
 import { createServer } from 'node:http'
-import { readFileSync, unlinkSync } from 'node:fs'
+import { readFileSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -239,19 +239,31 @@ assert.ok(models.some((m) => m.id === 'auto'), '模型列表含 auto')
 assert.ok(models.length > 3, '配 Key 后免费可用模型进列表')
 assert.ok(models.every((m) => m.id === 'auto' || m.free !== false), '列表只含免费模型')
 
-// showModels：'auto-only' 让选择器只留 auto（issue #10）；关掉回到历史行为。
+// showModels：'auto-only' 让选择器只留 auto（issue #10），落盘持久化且手改文件热生效；关掉回到历史行为。
 assert.equal(st.showModels, 'free', '默认模型列表范围为 auto + 免费模型')
 const badScope = await remote.applyPatch({ patch: { showModels: 'nope' } })
 assert.equal(badScope.ok, false, 'showModels 非法值被拒绝')
 assert.ok((await remote.applyPatch({ patch: { showModels: 'auto-only' } })).ok, '开启 auto-only')
+assert.equal(JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8')).showModels, 'auto-only', 'showModels: auto-only 落盘到配置文件')
 const autoOnly = await adapter.listModels()
 assert.equal(autoOnly.length, 1, 'auto-only 时选择器只剩 1 项')
 assert.equal(autoOnly[0].id, 'auto', 'auto-only 时只剩 auto')
 assert.equal((await remote.state({})).showModels, 'auto-only', 'state 反映 auto-only')
 assert.ok((await remote.applyPatch({ patch: { showModels: '' } })).ok, '清空 showModels')
+assert.equal(JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8')).showModels, undefined, '清空 showModels 后从配置文件移除')
 const restored = await adapter.listModels()
 assert.equal(restored.length, models.length, '清空后恢复全部免费模型')
 assert.equal((await remote.state({})).showModels, 'free', 'state 反映默认范围')
+// 手改配置文件写入 showModels 后，直接调 listModels() 即可热加载生效（无需先打开设置页触发 state）
+const diskCfg = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
+diskCfg.showModels = 'auto-only'
+writeFileSync(process.env.FREEROUTE_CONFIG, JSON.stringify(diskCfg, null, 2) + '\n', 'utf8')
+const bumped = new Date(Date.now() + 2000)
+utimesSync(process.env.FREEROUTE_CONFIG, bumped, bumped)
+const hotAutoOnly = await adapter.listModels()
+assert.equal(hotAutoOnly.length, 1, '手改配置文件后 listModels 热加载为 auto-only')
+assert.equal(hotAutoOnly[0].id, 'auto', '热加载后只剩 auto')
+assert.ok((await remote.applyPatch({ patch: { showModels: '' } })).ok, '热加载测试后恢复默认')
 
 console.log('■ 3. patch 校验与持久化')
 const evil = await remote.applyPatch({ patch: { evilField: 1 } })
