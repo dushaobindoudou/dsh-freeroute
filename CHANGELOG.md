@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Windows 下所有请求 502 `STREAM_CLOSED`**：curl 子进程的工作目录硬编码
+  POSIX `/tmp`，在 Windows 上解析为 `C:\tmp`（默认不存在）→ spawn 直接
+  ENOENT，故障转移链与模型探测全部秒挂
+  （[#11](https://github.com/dushaobindoudou/dsh-freeroute/issues/11)）。
+  现改用平台临时目录 `os.tmpdir()`；动态沙箱无 os 能力时退回进程当前目录。
+- smoke 测试在 Windows 上无法加载 `lib/index.js`（ESM 不接受 `C:\` 开头的
+  specifier），改用 `pathToFileURL` 包一层；并新增回归断言：所有 curl
+  spawn 的 cwd 必须等于 `os.tmpdir()`。
+
 ## [0.10.3]
 
 ### Changed

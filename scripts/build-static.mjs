@@ -65,7 +65,7 @@ const out = `/**
  * body (freeroute-dynamic/), integration-tested (137 assertions) - edit
  * src/, never the generated files. */
 import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
 // --- typert 模块实例自愈（v0.7.3 关键修复）---
@@ -144,7 +144,7 @@ export function apply(ctx, _config = {}) {
   // JSON 配置文件层（~/.dsh/freeroute.json）所需的 node 能力；动态沙箱里
   // 这两个标识符不存在，host 体内用 typeof 守卫降级到 settings 服务。
   const __nodeFs = { mkdirSync, readFileSync, renameSync, statSync, writeFileSync }
-  const __nodeOs = { homedir }
+  const __nodeOs = { homedir, tmpdir }
 ${body}
 }
 `

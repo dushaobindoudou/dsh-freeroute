@@ -9,7 +9,7 @@ import { createServer } from 'node:http'
 import { readFileSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
@@ -22,7 +22,7 @@ process.env.FREEROUTE_CONFIG = join(tmpdir(), 'freeroute-smoke-' + process.pid +
 try { unlinkSync(process.env.FREEROUTE_CONFIG) } catch { /* 不存在即跳过 */ }
 // 运行日志写到临时 DSH_HOME：不污染真实 ~/.dsh/freeroute/freeroute.log
 process.env.DSH_HOME = join(tmpdir(), 'freeroute-smoke-home-' + process.pid)
-const mod = await import(join(here, '..', 'lib', 'index.js'))
+const mod = await import(pathToFileURL(join(here, '..', 'lib', 'index.js')).href)
 
 // ---------------------------------------------------------------- mock 上游
 const j = (o) => 'data: ' + JSON.stringify(o) + '\n\n'
@@ -113,7 +113,9 @@ function parseArgv(argv, stdinData) {
   }
   return { method, url, headers, bodyData }
 }
-function fakeSpawn({ argv, stdio }) {
+const spawnCalls = []
+function fakeSpawn({ argv, stdio, cwd }) {
+  spawnCalls.push({ argv, cwd })
   const spec = parseArgv(argv, stdio && stdio.stdin && stdio.stdin.data)
   let errText = ''
   const ctl = new AbortController()
@@ -438,6 +440,14 @@ assert.equal(currentSel.provider, 'freeroute', '显式开启再次接管')
   const libHost = readFileSync(join(here, '..', 'lib', 'index.js'), 'utf8')
   const m = libHost.match(/export const inject = \[([^\]]*)\]/)
   assert.ok(m && m[1].includes("'settings'") && m[1].includes("'credentials'") && m[1].includes("'subprocess'"), '静态宿主 inject 含 settings/credentials/subprocess')
+}
+
+// ■ 10. curl 子进程 cwd 回归（issue #11）：POSIX '/tmp' 在 Windows 上解析为
+// C:\tmp，默认不存在 → spawn 直接 ENOENT，所有请求 502 STREAM_CLOSED。
+// 每个 curl spawn 的 cwd 都必须是平台临时目录。
+assert.ok(spawnCalls.length >= 1, 'smoke 至少覆盖一次 curl spawn')
+for (const call of spawnCalls) {
+  assert.equal(call.cwd, tmpdir(), 'curl spawn cwd 必须是平台临时目录 tmpdir()')
 }
 
 console.log('\nsmoke: all assertions passed ✓')

@@ -103,7 +103,7 @@
           '-H', 'x-title: dsh-freeroute',
           '--data-binary', '@-', '-w', TRAILER)
         try {
-          proc = subprocess.spawn({ argv: argv, cwd: '/tmp', stdio: { stdin: { data: body }, stdout: 'pipe', stderr: { maxBytes: 4096 } }, graceMs: 5000, signal: options.signal })
+          proc = subprocess.spawn({ argv: argv, cwd: freerouteSpawnCwd(), stdio: { stdin: { data: body }, stdout: 'pipe', stderr: { maxBytes: 4096 } }, graceMs: 5000, signal: options.signal })
         } catch (e) { throw mkFail('curl 启动失败: ' + emsg(e), 'TRANSPORT') }
         if (hooks && typeof hooks.onProc === 'function') { try { hooks.onProc(proc) } catch (e) { } }
         if (!proc || !proc.stdout) throw mkFail('curl 输出管道不可用', 'TRANSPORT')
