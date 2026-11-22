@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.2]
+
+### Fixed
+
+- **重试时整轮直接失败：`session event "llm/retry" carries non-JSON-serializable data`**。
+  `providerRetryPolicy()` 把退避参数塞在 `backoff` 子对象里，而宿主只在适配器返回
+  `undefined` 时才跑 `resolveRetryPolicy()`（`dsh-llm` 的 `prepareRoutes` 原样收下返回值、
+  不再解析）。于是 `policy.initialDelayMs` 为 `undefined` → `dsh-llm-retry` 的
+  `localDelay()` 算出 `NaN` → 追加 `llm/retry` 事件时被会话日志的 JSON 校验拒掉，
+  异常冒到轮次上，整轮失败且报错与本轮真实原因无关。
+  现改为「已解析」扁平形状（`initialDelayMs` / `maxDelayMs` / `jitterRatio` 在顶层，
+  整体 `Object.freeze`）。任何真正触发重试的请求（限流 / 超时 / 5xx / 空响应）此前都会
+  撞上，免费池高频重试只是让它更容易暴露。
+- smoke 新增回归断言：策略必须是扁平形状、各项有限且在合法区间，并按宿主
+  `localDelay()` 公式断言 1–5 次重试的 `delayMs` 均为有限数（即能写进会话事件）。
+
 ## [0.11.1]
 
 ### Fixed

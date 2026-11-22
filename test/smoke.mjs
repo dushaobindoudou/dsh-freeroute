@@ -254,6 +254,27 @@ assert.equal(JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8')).show
 const restored = await adapter.listModels()
 assert.equal(restored.length, models.length, '清空后恢复全部免费模型')
 assert.equal((await remote.state({})).showModels, 'free', 'state 反映默认范围')
+
+// providerRetryPolicy 必须是「已解析」形状（退避三项在顶层）。宿主只在返回
+// undefined 时才跑 resolveRetryPolicy()，嵌套 backoff 会让 localDelay 算出 NaN，
+// llm/retry 事件带非有限数 → session.append 抛 "carries non-JSON-serializable
+// data"，整轮失败（用户实际遇到的报错）。
+const rp = adapter.providerRetryPolicy('freeroute')
+assert.equal(rp.mode, 'normal', '重试策略 mode = normal')
+assert.equal(rp.backoff, undefined, '不得返回嵌套 backoff（宿主不会解析它）')
+assert.ok(Number.isFinite(rp.initialDelayMs) && rp.initialDelayMs > 0, '初始退避是顶层有限正数')
+assert.ok(Number.isFinite(rp.maxDelayMs) && rp.maxDelayMs >= rp.initialDelayMs, '最大退避是顶层有限数且不小于初始值')
+assert.ok(Number.isFinite(rp.jitterRatio) && rp.jitterRatio >= 0 && rp.jitterRatio <= 1, '抖动系数在 [0,1]')
+assert.ok(Array.isArray(rp.retryableCodes) && rp.retryableCodes.length > 0 && new Set(rp.retryableCodes).size === rp.retryableCodes.length && rp.retryableCodes.every((c) => typeof c === 'string' && c.length > 0), 'retryableCodes 是非空去重字符串数组')
+// 复刻宿主 dsh-llm-retry 的 localDelay：任何重试次数都必须得到有限延迟（写进会话事件）
+const hostLocalDelay = function (c, retry) {
+  const exponential = Math.min(c.initialDelayMs * 2 ** Math.min(retry - 1, 1024), c.maxDelayMs)
+  const jitter = 1 - c.jitterRatio + 2 * c.jitterRatio * 0.5
+  return Math.min(exponential * jitter, c.maxDelayMs)
+}
+for (let r = 1; r <= 5; r++) {
+  assert.ok(Number.isFinite(hostLocalDelay(rp, r)), '第 ' + r + ' 次重试的 delayMs 为有限数（可 JSON 序列化）')
+}
 // 手改配置文件写入 showModels 后，直接调 listModels() 即可热加载生效（无需先打开设置页触发 state）
 const diskCfg = JSON.parse(readFileSync(process.env.FREEROUTE_CONFIG, 'utf8'))
 diskCfg.showModels = 'auto-only'
